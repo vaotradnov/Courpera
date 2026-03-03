@@ -1,0 +1,119 @@
+{# Renders one question card with expand/collapse, answers table, and add-answer form. #}
+<li class="question-card" id="q{{ q.id }}">
+  {% with q.id|stringformat:'s' as qid %}{% with 'q'|add:qid as qkey %}
+  <details {% if expand == 'all' or expand == qkey %}open{% endif %}>
+    <summary class="question-header">
+      <span class="chip">Q{{ q.order }}</span>
+      <span class="question-title ellipsis" title="{{ q.text }}">{{ q.text }}</span>
+      <span class="muted answers-count">({{ q.choice_count }} answers)</span>
+      {% if q.correct_count == 1 and q.choice_count >= 2 %}
+        <span class="badge badge-ok">Ready</span>
+      {% elif q.choice_count < 2 %}
+        <span class="badge badge-warn">&lt; 2 choices</span>
+      {% else %}
+        <span class="badge badge-warn">Needs correct</span>
+      {% endif %}
+      <span class="sr-only">Press Enter to toggle</span>
+      {% if not locked %}
+      <span class="question-actions">
+        <form method="post" action="" class="inline" title="Move up">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="move_question" />
+          <input type="hidden" name="question_id" value="{{ q.id }}" />
+          <input type="hidden" name="dir" value="up" />
+          <button type="submit" class="icon-btn btn-link" aria-label="Move question up"><span aria-hidden="true">&uarr;</span><span class="sr-only">Move up</span></button>
+        </form>
+        <form method="post" action="" class="inline" title="Move down">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="move_question" />
+          <input type="hidden" name="question_id" value="{{ q.id }}" />
+          <input type="hidden" name="dir" value="down" />
+          <button type="submit" class="icon-btn btn-link" aria-label="Move question down"><span aria-hidden="true">&darr;</span><span class="sr-only">Move down</span></button>
+        </form>
+        <a class="icon-btn btn-link" href="?expand=q{{ q.id }}#q{{ q.id }}-edit" title="Edit question"><span aria-hidden="true">&#9998;</span><span class="sr-only">Edit question</span></a>
+        <form method="post" action="" class="inline" title="Delete question" data-confirm="Delete this question and its answers?">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="delete_question" />
+          <input type="hidden" name="question_id" value="{{ q.id }}" />
+          <button type="submit" class="icon-btn btn-link" aria-label="Delete question"><span aria-hidden="true">&times;</span><span class="sr-only">Delete question</span></button>
+        </form>
+      </span>
+      {% endif %}
+    </summary>
+
+    <div class="question-body" id="q{{ q.id }}-edit">
+      {% if not locked %}
+      <form method="post" action="" class="mb-2">
+        {% csrf_token %}
+        <input type="hidden" name="question_id" value="{{ q.id }}" />
+        <div class="kv">
+          <label>Question text</label>
+          <input type="text" name="text" value="{{ q.text }}" class="input w-100" />
+        </div>
+        <button type="submit" name="action" value="update_question" class="btn-secondary">Save</button>
+      </form>
+      {% endif %}
+
+      <div class="table-wrap">
+        <table class="table choices-table">
+          <thead>
+            <tr>
+              <th scope="col">Answer</th>
+              <th scope="col">Explanation</th>
+              <th scope="col" class="text-right">Status</th>
+              <th scope="col" class="text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td colspan="4" class="muted" style="padding-top:.25rem;">
+                Exactly one answer must be marked <strong>Correct</strong>; minimum two answers.
+              </td>
+            </tr>
+            {% for c in q.choices.all %}
+              {% include "assignments/_quiz_choice_row.html" with c=c q=q assignment=assignment locked=locked edit_choice_id=edit_choice_id %}
+            {% empty %}
+              <tr><td colspan="4" class="muted">No answers yet.</td></tr>
+            {% endfor %}
+
+            {% if not locked %}
+            <tr>
+              <td colspan="4">
+                <form method="post" action="" class="inline w-100">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="add_choice" />
+                  <input type="hidden" name="question_id" value="{{ q.id }}" />
+                  <div class="grid grid-2">
+                    <div>
+                      <label class="sr-only">Answer</label>
+                      {{ c_form.text }}
+                    </div>
+                    <div>
+                      <label class="sr-only">Explanation</label>
+                      {{ c_form.explanation }}
+                      <div class="muted hint">Optional; shown in feedback after attempt.</div>
+                    </div>
+                  </div>
+                  <div class="question-footer-actions">
+                    <button type="submit" class="btn">Add choice</button>
+                  </div>
+                </form>
+                <div class="question-footer-actions">
+                  <form method="post" action="" class="inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="toggle_add_correct" />
+                    <input type="hidden" name="question_id" value="{{ q.id }}" />
+                    <button type="submit" class="btn-secondary">Mark correct: {% if add_mark_correct %}On{% else %}Off{% endif %}</button>
+                  </form>
+                  {% if add_mark_correct %}<span class="muted">New choices will be marked correct.</span>{% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+  {% endwith %}{% endwith %}
+  </li>

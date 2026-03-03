@@ -198,6 +198,14 @@ cython_debug/
 # .vscode/
 
 # Ruff stuff:
+
+# Local agent guide (do not push)
+AGENTS.md
+
+# (Not recommended) ignore this .gitignore file itself
+# Note: if already tracked, Git will still push it unless untracked via:
+#   git rm --cached .gitignore
+# .gitignore
 .ruff_cache/
 
 # PyPI configuration file

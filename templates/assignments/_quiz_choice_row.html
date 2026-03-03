@@ -1,0 +1,76 @@
+{# Renders a single choice row: normal view or inline edit view. #}
+{% if edit_choice_id == c.id %}
+  <tr id="c{{ c.id }}">
+    <td colspan="3">
+      <form method="post" action="" class="inline w-100">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="update_choice" />
+        <input type="hidden" name="choice_id" value="{{ c.id }}" />
+        <div class="kv">
+          <label>Answer</label>
+          <input type="text" name="text" value="{{ c.text }}" class="input w-100" />
+          <label>Explanation</label>
+          <textarea name="explanation" rows="3" class="w-100 no-resize" placeholder="Optional; shown in feedback after attempt">{{ c.explanation }}</textarea>
+        </div>
+        <button type="submit" class="btn">Save</button>
+        <button type="submit" name="continue" value="1" class="btn-secondary">Save and continue</button>
+        <a class="btn-secondary" href="{% url 'assignments:quiz-manage' pk=assignment.id %}?expand=q{{ q.id }}">Cancel</a>
+      </form>
+    </td>
+    <td class="text-right">
+      {% if not locked %}
+      <form method="post" action="" class="inline" data-confirm="Delete this answer?">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="delete_choice" />
+        <input type="hidden" name="choice_id" value="{{ c.id }}" />
+        <button type="submit" class="btn-link">Delete</button>
+      </form>
+      {% endif %}
+    </td>
+  </tr>
+{% else %}
+  <tr id="c{{ c.id }}">
+    <td class="cell-text" title="{{ c.text }}">{{ c.text }}</td>
+    <td class="muted cell-text" title="{{ c.explanation }}">{% if c.explanation %}{{ c.explanation }}{% else %}&mdash;{% endif %}</td>
+    <td class="text-right">
+      {% if c.is_correct %}
+        <span class="badge">Correct</span>
+      {% endif %}
+    </td>
+    <td class="text-right">
+      {% if not c.is_correct and not locked %}
+      <form method="post" action="" class="inline" title="Make correct">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="mark_correct" />
+        <input type="hidden" name="choice_id" value="{{ c.id }}" />
+        <button type="submit" class="icon-btn btn-link" aria-label="Make correct" data-confirm="Make this the correct answer?">
+          <span aria-hidden="true">&#10003;</span><span class="sr-only">Make correct</span>
+        </button>
+      </form>
+      {% endif %}
+      {% if not locked %}
+      <form method="post" action="" class="inline" title="Move up">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="move_choice" />
+        <input type="hidden" name="choice_id" value="{{ c.id }}" />
+        <input type="hidden" name="dir" value="up" />
+        <button type="submit" class="icon-btn btn-link" aria-label="Move up"><span aria-hidden="true">&uarr;</span><span class="sr-only">Move up</span></button>
+      </form>
+      <form method="post" action="" class="inline" title="Move down">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="move_choice" />
+        <input type="hidden" name="choice_id" value="{{ c.id }}" />
+        <input type="hidden" name="dir" value="down" />
+        <button type="submit" class="icon-btn btn-link" aria-label="Move down"><span aria-hidden="true">&darr;</span><span class="sr-only">Move down</span></button>
+      </form>
+      <a class="icon-btn btn-link" title="Edit" href="{% url 'assignments:quiz-manage' pk=assignment.id %}?expand=q{{ q.id }}&edit_choice={{ c.id }}"><span aria-hidden="true">&#9998;</span><span class="sr-only">Edit</span></a>
+      <form method="post" action="" class="inline" title="Delete" data-confirm="Delete this answer?">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="delete_choice" />
+        <input type="hidden" name="choice_id" value="{{ c.id }}" />
+        <button type="submit" class="icon-btn btn-link" aria-label="Delete"><span aria-hidden="true">&times;</span><span class="sr-only">Delete</span></button>
+      </form>
+      {% endif %}
+    </td>
+  </tr>
+{% endif %}

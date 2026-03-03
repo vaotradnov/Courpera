@@ -42,6 +42,9 @@
         <label for="id_max_marks">Max marks</label>
         {{ form.max_marks }}
         {{ form.max_marks.errors }}
+        <label for="id_attempts_policy">Attempts policy</label>
+        {{ form.attempts_policy }}
+        {{ form.attempts_policy.errors }}
       </div>
       <button type="submit" class="btn">Create</button>
       <a href="/assignments/course/{{ course.id }}/">Cancel</a>

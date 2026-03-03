@@ -6,8 +6,8 @@
     <div class="panel-heading">
       <h3>Gradebook - {{ course.title }}</h3>
       <div class="action-right">
-        <a class="btn-secondary" href="/courses/{{ course.id }}/gradebook.csv">Export CSV</a>
-        <a class="btn-secondary" href="/courses/{{ course.id }}/">Back to course</a>
+        <a class="btn-secondary" href="{% url 'courses:gradebook-csv' pk=course.id %}">Export CSV</a>
+        <a class="btn-secondary" href="{% url 'courses:detail' pk=course.id %}">Back to course</a>
       </div>
     </div>
     {% if enrolments %}
@@ -23,7 +23,10 @@
           <tr>
             <th>Student</th>
             {% for a in assignments %}
-              <th>{{ a.title }}</th>
+              <th>
+                {{ a.title }}
+                <span class="badge badge-muted">{{ a.attempts_policy|capfirst }}</span>
+              </th>
             {% endfor %}
             <th>Course %</th>
           </tr>

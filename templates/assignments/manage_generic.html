@@ -16,7 +16,7 @@
             <button type="submit" class="btn-secondary" {% if locked %}disabled{% endif %} formnovalidate data-confirm="Unpublish this assignment? Students won't be able to submit until republished.">Unpublish</button>
           {% endif %}
         </form>
-        <a href="/assignments/{{ assignment.id }}/attempts/" class="btn-secondary">Attempts</a>
+        <a href="{% url 'assignments:attempts' pk=assignment.id %}" class="btn-secondary" title="Grade and release attempts after the deadline">Attempts{% if attempts_count %} ({{ attempts_count }}){% endif %}</a>
         <a href="/assignments/course/{{ assignment.course.id }}/" class="btn-secondary">Back to assignments</a>
       </div>
     </div>
@@ -59,6 +59,11 @@
         {{ meta_form.max_marks.errors }}
         <div></div>
         <p class="muted">Default 100. Used in course percentage.</p>
+        <label for="id_attempts_policy">Attempts policy</label>
+        {{ meta_form.attempts_policy }}
+        {{ meta_form.attempts_policy.errors }}
+        <div></div>
+        <p class="muted">Best: highest mark; Latest: most recent attempt.</p>
       </div>
       <button type="submit" name="action" value="update_meta" class="btn-secondary">Save details</button>
     </form>

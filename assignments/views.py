@@ -4,6 +4,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone 
 from datetime import timedelta
 from django.conf import settings
@@ -22,7 +23,7 @@ from .models import (
     StudentAnswer,
 )
 from .forms import AssignmentForm, QuizQuestionForm, QuizAnswerChoiceForm, AssignmentMetaForm, GradeAttemptForm 
-from .utils import grade_quiz, quiz_readiness, upsert_grade_for_attempt
+from .utils import grade_quiz, quiz_readiness, upsert_grade_for_attempt, recalc_grades_for_assignment
 from activity.models import Notification
 
 
@@ -151,16 +152,40 @@ def quiz_manage(request, pk: int):
         raise PermissionDenied
     # Lock structural editing once attempts exist; compute readiness banner
     locked = Attempt.objects.filter(assignment=a).exists()
+    attempts_count = Attempt.objects.filter(assignment=a).count()
     ready_info = quiz_readiness(a) if a.type == AssignmentType.QUIZ else {"ready": True, "issues": []}
     q_form = QuizQuestionForm()
     c_form = QuizAnswerChoiceForm()
     meta_form = AssignmentMetaForm(instance=a) 
+    # Session toggle for add-choice mark-correct state
+    toggle_key = f"quiz_add_correct_{a.id}"
+    add_mark_correct = bool(request.session.get(toggle_key, False))
+
+    # Inline choice edit mode (GET): use ?edit_choice=<id>
+    try:
+        edit_choice_id = int(request.GET.get("edit_choice")) if request.GET.get("edit_choice") else None
+    except Exception:
+        edit_choice_id = None
+
+    # Build questions list with counts for template badges
+    try:
+        questions = list(a.questions.order_by("order").prefetch_related("choices"))
+        for q in questions:
+            chs = list(q.choices.all())
+            setattr(q, "choice_count", len(chs))
+            setattr(q, "correct_count", sum(1 for c in chs if getattr(c, "is_correct", False)))
+    except Exception:
+        questions = list(a.questions.order_by("order").all())
+        for q in questions:
+            setattr(q, "choice_count", q.choices.count())
+            setattr(q, "correct_count", q.choices.filter(is_correct=True).count())
 
     if request.method == "POST": 
         action = request.POST.get("action", "") 
         # Meta updates allowed even if locked 
-        if action == "update_meta": 
+        if action == "update_meta":
             # Apply attempts update defensively even if other fields are invalid
+            old_policy = a.attempts_policy
             try:
                 new_attempts = int((request.POST.get("attempts_allowed") or "").strip() or 0)
                 if new_attempts >= 1:
@@ -172,7 +197,11 @@ def quiz_manage(request, pk: int):
                 pass
             meta_form = AssignmentMetaForm(request.POST, instance=a) 
             if meta_form.is_valid(): 
-                meta_form.save() 
+                meta_form.save()
+                # Recompute grades if attempts policy changed
+                a.refresh_from_db(fields=["attempts_policy"])
+                if a.attempts_policy != old_policy:
+                    recalc_grades_for_assignment(a)
                 messages.success(request, "Assignment details updated.") 
                 return redirect("assignments:quiz-manage", pk=a.pk) 
         elif action == "set_available_now":
@@ -207,6 +236,17 @@ def quiz_manage(request, pk: int):
             a.save(update_fields=["deadline"]) 
             messages.success(request, "Deadline updated.")
             return redirect("assignments:quiz-manage", pk=a.pk)
+        elif action == "toggle_add_correct":
+            request.session[toggle_key] = not add_mark_correct
+            request.session.modified = True
+            try:
+                qid = int(request.POST.get("question_id")) if request.POST.get("question_id") else None
+            except Exception:
+                qid = None
+            url = reverse("assignments:quiz-manage", args=[a.pk])
+            if qid:
+                return redirect(f"{url}?expand=q{qid}")
+            return redirect(url)
         elif action == "update_question": 
             qid = int(request.POST.get("question_id", "0")) 
             txt = (request.POST.get("text") or "").strip()
@@ -215,7 +255,23 @@ def quiz_manage(request, pk: int):
                 q.text = txt
                 q.save(update_fields=["text"])
                 messages.success(request, "Question updated.")
-                return redirect("assignments:quiz-manage", pk=a.pk)
+                url = reverse("assignments:quiz-manage", args=[a.pk])
+                return redirect(f"{url}?expand=q{qid}#q{qid}-edit")
+        elif action == "move_question":
+            qid = int(request.POST.get("question_id", "0"))
+            direction = (request.POST.get("dir") or "").strip().lower()
+            q = a.questions.filter(pk=qid).first()
+            if q:
+                if direction == "up":
+                    neigh = a.questions.filter(order__lt=q.order).order_by("-order").first()
+                else:
+                    neigh = a.questions.filter(order__gt=q.order).order_by("order").first()
+                if neigh:
+                    q.order, neigh.order = neigh.order, q.order
+                    q.save(update_fields=["order"])
+                    neigh.save(update_fields=["order"])
+            url = reverse("assignments:quiz-manage", args=[a.pk])
+            return redirect(f"{url}?expand=q{qid}#q{qid}")
         elif not locked:
             if action == "add_question":
                 q_form = QuizQuestionForm(request.POST)
@@ -237,11 +293,55 @@ def quiz_manage(request, pk: int):
                         c.question = q 
                         c.order = (q.choices.aggregate(models.Max("order")) or {}).get("order__max") or 0 
                         c.order += 1 
+                        # Use session toggle for mark-correct state
+                        c.is_correct = bool(request.session.get(toggle_key, False))
                         c.save() 
                         if c.is_correct: 
                             q.choices.exclude(pk=c.pk).update(is_correct=False) 
                         messages.success(request, "Answer option added.") 
-                        return redirect("assignments:quiz-manage", pk=a.pk) 
+                        url = reverse("assignments:quiz-manage", args=[a.pk])
+                        return redirect(f"{url}?expand=q{q.id}#c{c.id}") 
+            elif action == "update_choice":
+                cid = int(request.POST.get("choice_id", "0"))
+                ch = QuizAnswerChoice.objects.filter(pk=cid, question__assignment=a).first()
+                if ch:
+                    new_text = (request.POST.get("text") or "").strip()
+                    new_expl = (request.POST.get("explanation") or "").strip()
+                    if new_text:
+                        ch.text = new_text
+                        ch.explanation = new_expl
+                        ch.save(update_fields=["text", "explanation"])
+                        messages.success(request, "Answer updated.")
+                # Save and continue editing support
+                if (request.POST.get("continue") or "") == "1":
+                    url = reverse("assignments:quiz-manage", args=[a.pk])
+                    qid = ch.question_id if ch else None
+                    if qid:
+                        return redirect(f"{url}?expand=q{qid}&edit_choice={cid}#c{cid}")
+                    return redirect(f"{url}?edit_choice={cid}#c{cid}")
+                url = reverse("assignments:quiz-manage", args=[a.pk])
+                qid = ch.question_id if ch else None
+                if qid:
+                    return redirect(f"{url}?expand=q{qid}#c{cid}")
+                return redirect(f"{url}#c{cid}")
+            elif action == "move_choice":
+                cid = int(request.POST.get("choice_id", "0"))
+                direction = (request.POST.get("dir") or "").strip().lower()
+                ch = QuizAnswerChoice.objects.filter(pk=cid, question__assignment=a).select_related("question").first()
+                if ch:
+                    q = ch.question
+                    if direction == "up":
+                        neigh = q.choices.filter(order__lt=ch.order).order_by("-order").first()
+                    else:
+                        neigh = q.choices.filter(order__gt=ch.order).order_by("order").first()
+                    if neigh:
+                        ch.order, neigh.order = neigh.order, ch.order
+                        ch.save(update_fields=["order"])
+                        neigh.save(update_fields=["order"])
+                url = reverse("assignments:quiz-manage", args=[a.pk])
+                if ch:
+                    return redirect(f"{url}?expand=q{ch.question_id}#c{ch.id}")
+                return redirect(url)
             elif action == "delete_question":
                 qid = int(request.POST.get("question_id", "0"))
                 q = a.questions.filter(pk=qid).first()
@@ -257,10 +357,12 @@ def quiz_manage(request, pk: int):
                     q = ch.question
                     if a.is_published and q.choices.count() <= 2:
                         messages.error(request, "Cannot delete: a published question must have at least two choices.")
-                        return redirect("assignments:quiz-manage", pk=a.pk)
+                        url = reverse("assignments:quiz-manage", args=[a.pk])
+                        return redirect(f"{url}?expand=q{q.id}#q{q.id}")
                     ch.delete() 
                     messages.success(request, "Answer option removed.") 
-                    return redirect("assignments:quiz-manage", pk=a.pk) 
+                    url = reverse("assignments:quiz-manage", args=[a.pk])
+                    return redirect(f"{url}?expand=q{q.id}#q{q.id}") 
             elif action == "mark_correct":
                 cid = int(request.POST.get("choice_id", "0"))
                 ch = QuizAnswerChoice.objects.filter(pk=cid, question__assignment=a).select_related("question").first()
@@ -269,7 +371,8 @@ def quiz_manage(request, pk: int):
                     ch.is_correct = True
                     ch.save(update_fields=["is_correct"])
                     messages.success(request, "Marked as correct.")
-                    return redirect("assignments:quiz-manage", pk=a.pk)
+                    url = reverse("assignments:quiz-manage", args=[a.pk])
+                    return redirect(f"{url}?expand=q{ch.question_id}#c{ch.id}")
             elif action == "publish": 
                 if not ready_info["ready"]: 
                     messages.error(request, "Quiz is not ready; fix issues before publishing.") 
@@ -292,7 +395,7 @@ def quiz_manage(request, pk: int):
                     a.save(update_fields=["is_published"])
                     messages.success(request, "Quiz unpublished.")
                 return redirect("assignments:quiz-manage", pk=a.pk)
-    return render(request, "assignments/quiz_manage.html", {"assignment": a, "locked": locked, "q_form": q_form, "c_form": c_form, "ready_info": ready_info, "meta_form": meta_form}) 
+    return render(request, "assignments/quiz_manage.html", {"assignment": a, "locked": locked, "q_form": q_form, "c_form": c_form, "ready_info": ready_info, "meta_form": meta_form, "attempts_count": attempts_count, "add_mark_correct": add_mark_correct, "edit_choice_id": edit_choice_id, "questions": questions}) 
 
 
 @login_required
@@ -575,6 +678,7 @@ def assignment_manage(request, pk: int):
         raise PermissionDenied
 
     locked = Attempt.objects.filter(assignment=a).exists()
+    attempts_count = Attempt.objects.filter(assignment=a).count()
     meta_form = AssignmentMetaForm(instance=a)
     q_form = QuizQuestionForm()
 
@@ -582,6 +686,7 @@ def assignment_manage(request, pk: int):
         action = request.POST.get("action", "")
         if action == "update_meta":
             # Apply attempts update defensively even if other fields are invalid
+            old_policy = a.attempts_policy
             try:
                 new_attempts = int((request.POST.get("attempts_allowed") or "").strip() or 0)
                 if new_attempts >= 1:
@@ -594,6 +699,9 @@ def assignment_manage(request, pk: int):
             meta_form = AssignmentMetaForm(request.POST, instance=a)
             if meta_form.is_valid():
                 meta_form.save()
+                a.refresh_from_db(fields=["attempts_policy"])
+                if a.attempts_policy != old_policy:
+                    recalc_grades_for_assignment(a)
                 messages.success(request, "Assignment details updated.")
                 return redirect("assignments:manage", pk=a.pk)
         elif action == "set_available_now":
@@ -677,5 +785,5 @@ def assignment_manage(request, pk: int):
     return render(
         request,
         "assignments/manage_generic.html",
-        {"assignment": a, "locked": locked, "meta_form": meta_form, "q_form": q_form},
+        {"assignment": a, "locked": locked, "meta_form": meta_form, "q_form": q_form, "attempts_count": attempts_count},
     )

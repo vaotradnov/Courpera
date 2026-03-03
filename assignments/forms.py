@@ -9,7 +9,7 @@ from .models import Assignment, QuizQuestion, QuizAnswerChoice, AssignmentType
 class AssignmentForm(forms.ModelForm):
     class Meta:
         model = Assignment
-        fields = ("type", "title", "instructions", "available_from", "deadline", "attempts_allowed", "max_marks")
+        fields = ("type", "title", "instructions", "available_from", "deadline", "attempts_allowed", "max_marks", "attempts_policy")
         widgets = {
             "instructions": forms.Textarea(attrs={"rows": 4}),
             # Use a local datetime input for better UX (browser-native picker)
@@ -24,6 +24,16 @@ class AssignmentForm(forms.ModelForm):
         self.fields["type"].choices = list(_AT.choices)
         if not self.initial.get("type"):
             self.fields["type"].initial = _AT.QUIZ
+        # Set attempts_policy initial based on type (quiz -> Best; else Latest)
+        try:
+            atype = (self.data.get("type") if hasattr(self, "data") and self.data else None) or self.initial.get("type") or getattr(self.instance, "type", None)
+            if atype == AssignmentType.QUIZ:
+                self.fields["attempts_policy"].initial = Assignment.AttemptsPolicy.BEST
+            elif atype:
+                self.fields["attempts_policy"].initial = Assignment.AttemptsPolicy.LATEST
+        except Exception:
+            pass
+
         # For create form, avoid strict client-side min to prevent browser prompts;
         # server-side validation enforces correctness.
         # Ensure initial deadline renders in the widget format if present
@@ -104,19 +114,23 @@ class QuizQuestionForm(forms.ModelForm):
     class Meta:
         model = QuizQuestion
         fields = ("text",)
-        widgets = {"text": forms.Textarea(attrs={"rows": 2})}
+        widgets = {"text": forms.Textarea(attrs={"rows": 2, "class": "w-100", "placeholder": "Question text"})}
 
 
 class QuizAnswerChoiceForm(forms.ModelForm):
     class Meta:
         model = QuizAnswerChoice
-        fields = ("text", "is_correct")
+        fields = ("text", "is_correct", "explanation")
+        widgets = {
+            "text": forms.TextInput(attrs={"class": "input w-100", "placeholder": "Answer text"}),
+            "explanation": forms.Textarea(attrs={"rows": 3, "class": "w-100 no-resize", "placeholder": "Optional; shown in feedback after attempt"}),
+        }
 
 
 class AssignmentMetaForm(forms.ModelForm):
     class Meta:
         model = Assignment
-        fields = ("title", "instructions", "available_from", "deadline", "attempts_allowed", "max_marks")
+        fields = ("title", "instructions", "available_from", "deadline", "attempts_allowed", "max_marks", "attempts_policy")
         widgets = {
             "deadline": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
             "available_from": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
@@ -143,6 +157,13 @@ class AssignmentMetaForm(forms.ModelForm):
                 self.fields["available_from"].widget.attrs.setdefault("min", now_str)
             if "deadline" in self.fields:
                 self.fields["deadline"].widget.attrs.setdefault("min", now_str)
+            # Set attempts_policy initial based on current type if empty
+            if not self.fields["attempts_policy"].initial:
+                atype = (self.data.get("type") if hasattr(self, "data") and self.data else None) or getattr(self.instance, "type", None)
+                if atype == AssignmentType.QUIZ:
+                    self.fields["attempts_policy"].initial = Assignment.AttemptsPolicy.BEST
+                elif atype:
+                    self.fields["attempts_policy"].initial = Assignment.AttemptsPolicy.LATEST
         except Exception:
             pass
 

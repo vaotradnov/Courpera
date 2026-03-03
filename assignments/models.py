@@ -24,6 +24,16 @@ class Assignment(models.Model):
     # Stage 16.01: maximum marks for this assignment (used for grading)
     max_marks = models.FloatField(default=100.0)
     attempts_allowed = models.PositiveSmallIntegerField(default=1)
+    class AttemptsPolicy(models.TextChoices):
+        BEST = "best", "Best"
+        LATEST = "latest", "Latest"
+
+    # Stage 16.03: attempts policy determining aggregation across attempts
+    attempts_policy = models.CharField(
+        max_length=10,
+        choices=AttemptsPolicy.choices,
+        default=AttemptsPolicy.LATEST,
+    )
     is_published = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -67,6 +77,8 @@ class QuizAnswerChoice(models.Model):
     order = models.PositiveSmallIntegerField(default=0)
     text = models.CharField(max_length=500)
     is_correct = models.BooleanField(default=False)
+    # Stage 16.03: optional explanation shown in feedback after attempt
+    explanation = models.TextField(blank=True)
 
     class Meta:
         ordering = ["order", "id"]

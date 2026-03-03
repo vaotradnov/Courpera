@@ -18,7 +18,7 @@
           {% endif %}
         </form>
         {% endif %}
-        <a href="/assignments/{{ assignment.id }}/attempts/" class="btn-secondary">Attempts</a>
+        <a href="{% url 'assignments:attempts' pk=assignment.id %}" class="btn-secondary" title="Review attempts; override marks and add feedback">Attempts{% if attempts_count %} ({{ attempts_count }}){% endif %}</a>
         <a href="/assignments/course/{{ assignment.course.id }}/" class="btn-secondary">Back to assignments</a>
       </div>
     </div>
@@ -61,6 +61,11 @@
         {{ meta_form.max_marks.errors }}
         <div></div>
         <p class="muted">Default 100. Used in course percentage.</p>
+        <label for="id_attempts_policy">Attempts policy</label>
+        {{ meta_form.attempts_policy }}
+        {{ meta_form.attempts_policy.errors }}
+        <div></div>
+        <p class="muted">Best: highest mark; Latest: most recent attempt.</p>
       </div> 
       <button type="submit" name="action" value="update_meta" class="btn-secondary">Save details</button> 
     </form> 
@@ -76,65 +81,17 @@
     {% if locked %}
       <p class="muted">Quiz is locked (attempts exist). You can no longer edit questions or answers.</p>
     {% endif %}
-    <h4>Questions</h4>
-    <ul>
-      {% for q in assignment.questions.all %}
-        <li>
-          <div class="answer-row">
-            <div><strong>Q{{ q.order }}.</strong> {{ q.text }}</div>
-            {% if not locked %}
-            <form method="post" action="" class="inline">
-              {% csrf_token %}
-              <input type="hidden" name="question_id" value="{{ q.id }}" /> 
-              <input type="text" name="text" value="{{ q.text }}" class="input-sm w-50" aria-label="Edit question" /> 
-              <button type="submit" name="action" value="update_question" class="btn-secondary">Save</button> 
-              <button type="submit" name="action" value="delete_question" class="btn-link" data-confirm="Delete this question?">Delete</button>
-            </form>
-            {% endif %}
-          </div>
-          
-          <ul>
-            {% for c in q.choices.all %}
-              <li class="answer-row">
-                <div>{{ c.text }}</div>
-                <div class="answer-actions">
-                  {% if c.is_correct %}
-                    <span class="muted">[Correct]</span>
-                  {% elif not locked %}
-                    <form method="post" action="" class="inline">
-                      {% csrf_token %}
-                      <input type="hidden" name="action" value="mark_correct" />
-                      <input type="hidden" name="choice_id" value="{{ c.id }}" />
-                      <button type="submit" class="btn-link">Mark correct</button>
-                    </form>
-                  {% endif %}
-                  {% if not locked %}
-                    <form method="post" action="" class="inline" data-confirm="Delete this answer?">
-                      {% csrf_token %}
-                      <input type="hidden" name="action" value="delete_choice" />
-                      <input type="hidden" name="choice_id" value="{{ c.id }}" />
-                      <button type="submit" class="btn-link">Delete</button>
-                    </form>
-                  {% endif %}
-                </div>
-              </li>
-            {% empty %}
-              <li class="muted">No answers yet.</li>
-            {% endfor %}
-          </ul>
-          {% if not locked %}
-          <form method="post" action="" class="inline-form">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="add_choice" />
-            <input type="hidden" name="question_id" value="{{ q.id }}" />
-            <div class="choice-add">
-              {{ c_form.text }}
-              <label>{{ c_form.is_correct }} Correct?</label>
-            </div>
-            <button type="submit" class="btn">Add answer</button>
-          </form>
-          {% endif %}
-        </li>
+    <div class="quiz-questions-header">
+      <div class="muted">Questions ({{ questions|length }})</div>
+      <div>
+        <a class="btn-link" href="?expand=all">Expand all</a>
+        <span class="muted">&middot;</span>
+        <a class="btn-link" href="?expand=none">Collapse all</a>
+      </div>
+    </div>
+    <ul class="quiz-questions">
+      {% for q in questions %}
+        {% include "assignments/_quiz_question.html" with q=q assignment=assignment locked=locked edit_choice_id=edit_choice_id c_form=c_form add_mark_correct=add_mark_correct expand=request.GET.expand %}
       {% empty %}
         <li class="muted">No questions yet.</li>
       {% endfor %}

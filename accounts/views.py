@@ -175,9 +175,14 @@ def student_grades(request: HttpRequest) -> HttpResponse:
     )
     rows = []
     for e in enrolments:
-        pct = compute_course_percentage(e.course, request.user)
+        pct = compute_course_percentage(e.course, request.user, only_released=True)
         grades = (
-            Grade.objects.filter(course=e.course, student=request.user, assignment__is_published=True)
+            Grade.objects.filter(
+                course=e.course,
+                student=request.user,
+                assignment__is_published=True,
+                released_at__isnull=False,
+            )
             .select_related("assignment")
             .order_by("assignment__title")
         )

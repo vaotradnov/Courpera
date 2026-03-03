@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Attempts — {{ block.super }}{% endblock %}
+{% block content %}
+  <section class="panel">
+    <div class="panel-heading">
+      <h3>Attempts — {{ assignment.title }}</h3>
+      <div class="action-right">
+        {% if assignment.type == 'quiz' %}
+          <a class="btn-secondary" href="{% url 'assignments:quiz-manage' pk=assignment.id %}">Back to manage</a>
+        {% else %}
+          <a class="btn-secondary" href="{% url 'assignments:manage' pk=assignment.id %}">Back to manage</a>
+        {% endif %}
+      </div>
+    </div>
+    <p class="muted">Quizzes are auto‑graded. Use this page to review attempts, add feedback, and override marks with a reason. For Papers/Exams, grade and release here after the deadline.</p>
+    {% if attempts %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Student</th>
+            <th>#</th>
+            <th>Submitted</th>
+            <th>Score</th>
+            <th>Marks</th>
+            <th>Released</th>
+            <th>Grade</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for att in attempts %}
+            <tr>
+              <td>{{ att.student.username }}</td>
+              <td>{{ att.attempt_no }}</td>
+              <td>{{ att.submitted_at }}</td>
+              <td>{% if att.score is not None %}{{ att.score }}%{% else %}&mdash;{% endif %}</td>
+              <td>{% if att.marks_awarded is not None %}{{ att.marks_awarded }}{% else %}&mdash;{% endif %} / {{ assignment.max_marks }}</td>
+              <td>{% if att.released %}Yes{% else %}No{% endif %}</td>
+              <td>
+                <form method="post" action="{% url 'assignments:attempt-grade' attempt_id=att.id %}">
+                  {% csrf_token %}
+                  <div class="kv">
+                    <label for="id_marks_{{ att.id }}">Marks</label>
+                    <input type="number" step="0.01" min="0" max="{{ assignment.max_marks }}" name="marks_awarded" id="id_marks_{{ att.id }}" value="{{ att.marks_awarded|default_if_none:'' }}" class="input-sm w-20" />
+                    <label for="id_feedback_{{ att.id }}">Feedback</label>
+                    <textarea name="feedback_text" id="id_feedback_{{ att.id }}" rows="2" class="w-50">{{ att.feedback_text }}</textarea>
+                    <label for="id_override_{{ att.id }}">Override reason</label>
+                    <textarea name="override_reason" id="id_override_{{ att.id }}" rows="2" class="w-50">{{ att.override_reason }}</textarea>
+                  </div>
+                  <button type="submit" class="btn">Save & release</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <p class="muted">No attempts yet.</p>
+    {% endif %}
+  </section>
+{% endblock %}

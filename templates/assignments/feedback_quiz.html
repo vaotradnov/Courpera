@@ -15,7 +15,12 @@
                 {% if c.id == chosen and not c.is_correct %}
                   <li class="answer wrong">{{ c.text }} (your answer)</li>
                 {% elif c.is_correct %}
-                  <li class="answer correct">{{ c.text }}{% if c.id == chosen %} (your answer){% endif %}</li>
+                  <li class="answer correct">
+                    {{ c.text }}{% if c.id == chosen %} (your answer){% endif %}
+                    {% if c.explanation %}
+                      <div class="muted">{{ c.explanation }}</div>
+                    {% endif %}
+                  </li>
                 {% else %}
                   <li>{{ c.text }}</li>
                 {% endif %}

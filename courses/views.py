@@ -136,11 +136,16 @@ def course_detail(request: HttpRequest, pk: int) -> HttpResponse:
     student_grades = None
     if is_enrolled and not owner_view:
         released = (
-            Grade.objects.filter(course=course, student=request.user, assignment__is_published=True)
+            Grade.objects.filter(
+                course=course,
+                student=request.user,
+                assignment__is_published=True,
+                released_at__isnull=False,
+            )
             .select_related("assignment")
             .order_by("assignment__title")
         )
-        total_pct = compute_course_percentage(course, request.user)
+        total_pct = compute_course_percentage(course, request.user, only_released=True)
         student_grades = {"grades": released, "percent": total_pct}
 
     ctx = {
