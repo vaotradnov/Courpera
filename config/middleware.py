@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from django.utils.deprecation import MiddlewareMixin
+from django.utils import timezone
 
 
 class ContentSecurityPolicyMiddleware(MiddlewareMixin):
@@ -34,3 +35,25 @@ class ContentSecurityPolicyMiddleware(MiddlewareMixin):
         )
         response["Content-Security-Policy"] = csp
         return response
+
+
+class UserTimezoneMiddleware(MiddlewareMixin):
+    """Activate per-user timezone (16.06).
+
+    Defaults to settings.TIME_ZONE when profile has no preference.
+    """
+
+    def process_request(self, request):  # noqa: D401
+        try:
+            user = getattr(request, "user", None)
+            tzname = None
+            if user and getattr(user, "is_authenticated", False):
+                prof = getattr(user, "profile", None)
+                tzname = getattr(prof, "timezone", None)
+            if tzname:
+                timezone.activate(tzname)
+            else:
+                timezone.deactivate()  # fallback to default TIME_ZONE
+        except Exception:
+            pass
+        return None

@@ -27,17 +27,17 @@
             <div class="explore-grid">
               <div>
                 <strong class="muted">Subjects</strong>
-                <a href="/courses/?q=data">Data Science</a>
-                <a href="/courses/?q=computer">Computer Science</a>
-                <a href="/courses/?q=business">Business</a>
-                <a href="/courses/?q=personal">Personal Development</a>
-                <a href="/courses/?q=language">Language Learning</a>
+                {% for subj in course_subjects %}
+                  <a href="/courses/?subject={{ subj|urlencode }}">{{ subj }}</a>
+                {% empty %}
+                  <span class="muted">No subjects yet.</span>
+                {% endfor %}
               </div>
               <div>
                 <strong class="muted">Levels</strong>
-                <a href="/courses/?q=beginner">Beginner</a>
-                <a href="/courses/?q=intermediate">Intermediate</a>
-                <a href="/courses/?q=advanced">Advanced</a>
+                <a href="/courses/?level=beginner">Beginner</a>
+                <a href="/courses/?level=intermediate">Intermediate</a>
+                <a href="/courses/?level=advanced">Advanced</a>
               </div>
             </div>
           </div>

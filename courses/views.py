@@ -10,7 +10,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from accounts.decorators import role_required
 from accounts.models import Role
 from django.contrib.auth.models import User
-from django.db.models import Q, CharField, F, Value
+from django.db.models import Q, CharField, F, Value, Count, Avg, Case, When, IntegerField
 from django.db.models.functions import Cast, Concat, Length, Substr
 import re
 from .forms import CourseForm, AddStudentForm, SyllabusForm
@@ -29,15 +29,67 @@ def _is_enrolled(user, course: Course) -> bool:
 
 
 def course_list(request: HttpRequest) -> HttpResponse:
-    """Public course catalogue; actions vary by role."""
+    """Public course catalogue with simple filters and sorting (16.04).
+
+    Filters: subject, level, language via query params.
+    Sorting: sort in {relevance|enrolled|updated|title}. Default relevance when q provided else title.
+    """
     q = (request.GET.get("q") or "").strip()
-    courses = Course.objects.select_related("owner").all()
+    subject = (request.GET.get("subject") or "").strip()
+    level = (request.GET.get("level") or "").strip()
+    language = (request.GET.get("language") or "").strip()
+    sort = (request.GET.get("sort") or "").strip().lower()
+
+    courses = (
+        Course.objects.select_related("owner")
+        .annotate(
+            enrol_count=Count("enrolments", distinct=True),
+            rating=Avg("feedback__rating"),
+        )
+    )
     if q:
-        courses = courses.filter(Q(title__icontains=q) | Q(owner__username__icontains=q))
-    enrolments = set()
+        courses = courses.filter(Q(title__icontains=q) | Q(owner__username__icontains=q) | Q(description__icontains=q))
+        # naive relevance: title match ranks higher
+        courses = courses.annotate(
+            rel=Case(
+                When(title__icontains=q, then=Value(2)),
+                When(description__icontains=q, then=Value(1)),
+                default=Value(0),
+                output_field=IntegerField(),
+            )
+        )
+    if subject:
+        courses = courses.filter(subject__iexact=subject)
+    if level:
+        courses = courses.filter(level__iexact=level)
+    if language:
+        courses = courses.filter(language__iexact=language)
+
+    if sort == "enrolled":
+        courses = courses.order_by(F("enrol_count").desc(nulls_last=True), "title")
+    elif sort == "updated":
+        courses = courses.order_by(F("updated_at").desc())
+    elif sort == "relevance" and q:
+        courses = courses.order_by(F("rel").desc(), F("updated_at").desc())
+    else:
+        # Default: relevance if q else title
+        courses = courses.order_by(F("rel").desc()) if q else courses.order_by("title")
+
+    enrolled_ids = set()
     if request.user.is_authenticated:
-        enrolments = set(Enrolment.objects.filter(student=request.user).values_list("course_id", flat=True))
-    ctx = {"courses": courses, "enrolled_ids": enrolments, "role": getattr(getattr(request.user, "profile", None), "role", None), "q": q}
+        enrolled_ids = set(Enrolment.objects.filter(student=request.user).values_list("course_id", flat=True))
+    total = courses.count()
+    ctx = {
+        "courses": courses,
+        "enrolled_ids": enrolled_ids,
+        "role": getattr(getattr(request.user, "profile", None), "role", None),
+        "q": q,
+        "subject": subject,
+        "level": level,
+        "language": language,
+        "sort": sort or ("relevance" if q else "title"),
+        "total": total,
+    }
     return render(request, "courses/list.html", ctx)
 
 
@@ -46,7 +98,7 @@ def course_list(request: HttpRequest) -> HttpResponse:
 def course_create(request: HttpRequest) -> HttpResponse:
     """Teacher-only course creation."""
     if request.method == "POST":
-        form = CourseForm(request.POST)
+        form = CourseForm(request.POST, request.FILES)
         if form.is_valid():
             course = form.save(commit=False)
             course.owner = request.user
@@ -66,7 +118,7 @@ def course_edit(request: HttpRequest, pk: int) -> HttpResponse:
     if not course.is_owner(request.user):
         raise PermissionDenied
     if request.method == "POST":
-        form = CourseForm(request.POST, instance=course)
+        form = CourseForm(request.POST, request.FILES, instance=course)
         if form.is_valid():
             form.save()
             messages.success(request, "Course updated.")
@@ -162,6 +214,8 @@ def course_detail(request: HttpRequest, pk: int) -> HttpResponse:
         "student_grades": student_grades,
         "syllabus_lines": _split_lines(getattr(course, "syllabus", "")),
         "outcome_lines": _split_lines(getattr(course, "outcomes", "")),
+        "enrol_count": Enrolment.objects.filter(course=course).count(),
+        "next_deadline": next((a.deadline for a in ann if getattr(a, "deadline", None)), None),
         "breadcrumbs": [
             ("/", "Home"),
             ("/courses/", "Courses"),

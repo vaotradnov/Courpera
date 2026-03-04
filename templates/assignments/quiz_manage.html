@@ -4,8 +4,12 @@
   <section class="panel">
     <div class="panel-heading">
       <h3>Manage Quiz - {{ assignment.title }}</h3>
-      <div class="action-right">
-        <span class="muted">{% if assignment.is_published %}Published{% else %}Draft{% endif %}</span>
+      <div class="action-right btn-group">
+        {% if assignment.is_published %}
+          <span class="chip status badge-ok" title="Visible to students when available time reached and ready">Published</span>
+        {% else %}
+          <span class="chip status badge-warn" title="Not visible to students">Draft</span>
+        {% endif %}
         {% if not locked %}
         <form method="post" action="" class="inline" novalidate>
           {% csrf_token %}
@@ -22,6 +26,7 @@
         <a href="/assignments/course/{{ assignment.course.id }}/" class="btn-secondary">Back to assignments</a>
       </div>
     </div>
+    <h4 class="section-heading">Meta</h4>
     <form method="post" action="" class="mb-2">
       {% csrf_token %}
       <div class="kv"> 
@@ -50,39 +55,44 @@
           </select>
           <button type="submit" name="action" value="set_deadline_delta" class="btn-link" formnovalidate>Set</button>
         </div>
-        {{ meta_form.deadline.errors }} 
+        {{ meta_form.deadline.errors }}
+        <p class="muted help kv-span">Times shown in your timezone: {{ request.user.profile.timezone|default:'Europe/London' }}</p>
         <label for="id_attempts_allowed">Attempts</label>
-        {{ meta_form.attempts_allowed }}
+        <div class="inline-field">
+          {{ meta_form.attempts_allowed }}
+          <span class="chip" title="Maximum marks">Max {{ assignment.max_marks|floatformat:"-2" }}</span>
+        </div>
         {{ meta_form.attempts_allowed.errors }}
-        <div></div>
-        <p class="muted">At least 1; cannot be less than attempts already used.</p>
+        <p class="muted help kv-span">At least 1; cannot be less than attempts already used.</p>
         <label for="id_max_marks">Max marks</label>
         {{ meta_form.max_marks }}
         {{ meta_form.max_marks.errors }}
-        <div></div>
-        <p class="muted">Default 100. Used in course percentage.</p>
+        <p class="muted help kv-span">Default 100. Used in course percentage.</p>
         <label for="id_attempts_policy">Attempts policy</label>
-        {{ meta_form.attempts_policy }}
+        <div class="inline-field">
+          {{ meta_form.attempts_policy }}
+          <span class="chip" title="Grading policy">Policy: {{ assignment.attempts_policy|capfirst }}</span>
+        </div>
         {{ meta_form.attempts_policy.errors }}
-        <div></div>
-        <p class="muted">Best: highest mark; Latest: most recent attempt.</p>
+        <p class="muted help kv-span">Best: highest mark; Latest: most recent attempt.</p>
       </div> 
       <button type="submit" name="action" value="update_meta" class="btn-secondary">Save details</button> 
     </form> 
     <div>
       {% if ready_info.ready %}
-        <p class="muted" aria-live="polite">Status: Ready for students.</p>
+        <p class="muted" aria-live="polite">Status: <span class="chip badge-ok">Ready</span> for students.</p>
       {% else %}
-        <p class="muted" aria-live="polite">Status: Needs corrections{% if ready_info.issues %}: {{ ready_info.issues|join:", " }}{% endif %}.</p>
+        <p class="muted" aria-live="polite">Status: <span class="chip badge-warn">Needs setup</span>{% if ready_info.issues %}: {{ ready_info.issues|join:", " }}{% endif %}.</p>
       {% endif %}
-      <p class="muted">Open when: <strong>Published</strong>, <strong>Ready</strong>, and <strong>Available</strong> time reached.</p>
-      <p class="muted">All times in Mountain Time.</p>
+      <p class="muted help">Open when: <strong>Published</strong>, <strong>Ready</strong>, and <strong>Available</strong> time reached.</p>
     </div>
+    <div class="section-divider" role="separator" aria-hidden="true"></div>
     {% if locked %}
       <p class="muted">Quiz is locked (attempts exist). You can no longer edit questions or answers.</p>
     {% endif %}
+    <h4 class="section-heading">Questions</h4>
     <div class="quiz-questions-header">
-      <div class="muted">Questions ({{ questions|length }})</div>
+      <div class="muted">({{ questions|length }})</div>
       <div>
         <a class="btn-link" href="?expand=all">Expand all</a>
         <span class="muted">&middot;</span>

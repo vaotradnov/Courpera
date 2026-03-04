@@ -30,8 +30,11 @@ router.register(r"api/v1/materials", MaterialViewSet, basename="materials")
 router.register(r"api/v1/feedback", FeedbackViewSet, basename="feedback")
 router.register(r"api/v1/status", StatusViewSet, basename="status")
 
+class UnthrottledSpectacularAPIView(SpectacularAPIView):
+    throttle_classes: list = []
+
 urlpatterns = [
-    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path("api/schema/", UnthrottledSpectacularAPIView.as_view(), name="schema"),
     # Use custom templates without inline JS/CSS to satisfy CSP
     path(
         "docs/",

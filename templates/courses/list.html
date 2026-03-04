@@ -1,15 +1,53 @@
 {% extends "base.html" %}
-{% block title %}Courses — {{ block.super }}{% endblock %}
+{% block title %}Courses - {{ block.super }}{% endblock %}
 {% block content %}
   <section class="panel">
     <h2>Courses</h2>
-    {% if role == 'student' %}
-      <form method="get" action="/courses/" class="mb-2">
-        <label for="q" class="sr-only">Search courses</label>
-        <input id="q" name="q" type="search" value="{{ q|default:'' }}" placeholder="Search courses…" class="input" />
-        <button type="submit" class="btn">Search</button>
-      </form>
+    <form method="get" action="/courses/" class="mb-2">
+      <label for="q" class="sr-only">Search courses</label>
+      <input id="q" name="q" type="search" value="{{ q|default:'' }}" placeholder="Search courses..." class="input" />
+      <select name="subject" aria-label="Subject">
+        <option value="">All subjects</option>
+        {% for s in course_subjects %}
+          <option value="{{ s }}" {% if subject == s %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+      <select name="level" aria-label="Level">
+        <option value="">All levels</option>
+        <option value="beginner" {% if level == 'beginner' %}selected{% endif %}>Beginner</option>
+        <option value="intermediate" {% if level == 'intermediate' %}selected{% endif %}>Intermediate</option>
+        <option value="advanced" {% if level == 'advanced' %}selected{% endif %}>Advanced</option>
+      </select>
+      <select name="language" aria-label="Language">
+        <option value="">Any language</option>
+        {% if language %}<option value="{{ language }}" selected>{{ language }}</option>{% endif %}
+      </select>
+      <select name="sort" aria-label="Sort by">
+        <option value="relevance" {% if sort == 'relevance' %}selected{% endif %}>Relevance</option>
+        <option value="enrolled" {% if sort == 'enrolled' %}selected{% endif %}>Most Enrolled</option>
+        <option value="updated" {% if sort == 'updated' %}selected{% endif %}>Recently Updated</option>
+        <option value="title" {% if sort == 'title' %}selected{% endif %}>Title</option>
+      </select>
+      <button type="submit" class="btn">Apply</button>
+    </form>
+    {% if q or subject or level or language %}
+      <div class="mb-2">
+        {% if q %}
+          <span class="chip">Search: {{ q }} <a class="btn-link" href="/courses/?{% if subject %}subject={{ subject|urlencode }}&{% endif %}{% if level %}level={{ level }}&{% endif %}{% if language %}language={{ language|urlencode }}&{% endif %}{% if sort %}sort={{ sort }}{% endif %}" aria-label="Clear search">&times;</a></span>
+        {% endif %}
+        {% if subject %}
+          <span class="chip">Subject: {{ subject }} <a class="btn-link" href="/courses/?{% if q %}q={{ q|urlencode }}&{% endif %}{% if level %}level={{ level }}&{% endif %}{% if language %}language={{ language|urlencode }}&{% endif %}{% if sort %}sort={{ sort }}{% endif %}" aria-label="Clear subject">&times;</a></span>
+        {% endif %}
+        {% if level %}
+          <span class="chip">Level: {{ level|capfirst }} <a class="btn-link" href="/courses/?{% if q %}q={{ q|urlencode }}&{% endif %}{% if subject %}subject={{ subject|urlencode }}&{% endif %}{% if language %}language={{ language|urlencode }}&{% endif %}{% if sort %}sort={{ sort }}{% endif %}" aria-label="Clear level">&times;</a></span>
+        {% endif %}
+        {% if language %}
+          <span class="chip">Language: {{ language }} <a class="btn-link" href="/courses/?{% if q %}q={{ q|urlencode }}&{% endif %}{% if subject %}subject={{ subject|urlencode }}&{% endif %}{% if level %}level={{ level }}&{% endif %}{% if sort %}sort={{ sort }}{% endif %}" aria-label="Clear language">&times;</a></span>
+        {% endif %}
+        <a class="btn-link" href="/courses/">Reset</a>
+      </div>
     {% endif %}
+    <p class="muted">Results: {{ total }}</p>
     {% if request.user.is_authenticated and role == 'teacher' %}
       <p><a class="btn" href="/courses/create/">Create a course</a></p>
     {% endif %}
@@ -19,8 +57,17 @@
         {% if request.user.is_authenticated and role == 'student' and c.id in enrolled_ids %}
           <span class="badge card-status">Enrolled</span>
         {% endif %}
+        {% if c.thumbnail %}
+          <img src="{{ c.thumbnail.url }}" alt="" class="thumb" />
+        {% endif %}
         <h3><a href="/courses/{{ c.id }}/">{{ c.title }}</a></h3>
-        <div class="meta">by {{ c.owner.username }}</div>
+        <div class="meta">
+          by {{ c.owner.username }}
+          {% if c.subject %}<span class="chip">{{ c.subject }}</span>{% endif %}
+          {% if c.level %}<span class="chip">{{ c.level|capfirst }}</span>{% endif %}
+          {% if c.language %}<span class="chip">{{ c.language }}</span>{% endif %}
+          {% if c.rating %}<span aria-label="Average rating">&#9733; {{ c.rating|floatformat:1 }}</span>{% endif %}
+        </div>
         <div class="actions">
           <a class="btn btn-secondary" href="/courses/{{ c.id }}/">View</a>
           {% if request.user.is_authenticated and role == 'student' %}
@@ -44,3 +91,6 @@
     </div>
   </section>
 {% endblock %}
+
+
+

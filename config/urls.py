@@ -24,6 +24,7 @@ urlpatterns = [
     path("assignments/", include("assignments.urls")),
     path("activity/", include("activity.urls")),
     path("messaging/", include("messaging.urls")),
+    path("discussions/", include("discussions.urls")),
     path("", include("ui.urls")),  # public index
     # API schema and docs
     path("", include("api.urls")),

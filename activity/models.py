@@ -21,10 +21,12 @@ class Notification(models.Model):
     TYPE_ENROLMENT = "enrolment"
     TYPE_MATERIAL = "material"
     TYPE_GRADE = "grade"
+    TYPE_QNA = "qna"
     TYPE_CHOICES = (
         (TYPE_ENROLMENT, "Enrolment"),
         (TYPE_MATERIAL, "Material"),
         (TYPE_GRADE, "Grade"),
+        (TYPE_QNA, "Q&A"),
     )
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")

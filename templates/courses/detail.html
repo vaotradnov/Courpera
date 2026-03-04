@@ -19,6 +19,11 @@
       <h2>{{ course.title }}</h2>
       {% if owner_view %}<a class="btn-secondary action-right" href="/courses/{{ course.id }}/edit/">Edit course</a>{% endif %}
     </div>
+    <p>
+      {% if course.subject %}<span class="chip">{{ course.subject }}</span>{% endif %}
+      {% if course.level %}<span class="chip">{{ course.level|capfirst }}</span>{% endif %}
+      {% if course.language %}<span class="chip">{{ course.language }}</span>{% endif %}
+    </p>
     {% if course.description %}
       <p>{{ course.description }}</p>
     {% endif %}
@@ -37,12 +42,21 @@
         </form>
       {% endif %}
       <a class="btn-link" href="/courses/{{ course.id }}/calendar.ics">Download calendar (.ics)</a>
+      <a class="btn-link" href="/discussions/course/{{ course.id }}/">Q&amp;A</a>
     </div>
+    <nav class="subnav" aria-label="Sections">
+      <a href="#syllabus">Syllabus</a>
+      <a href="#materials">Materials</a>
+      <a href="#assignments">Assignments</a>
+      <a href="/discussions/course/{{ course.id }}/">Q&amp;A</a>
+      <a href="#feedback">Feedback</a>
+      <span class="muted">Enrolled: {{ enrol_count }}</span>
+    </nav>
   </section>
 
   {% if owner_view or is_enrolled %}
   <!-- Syllabus first -->
-  <section class="panel">
+  <section class="panel" id="syllabus">
     <div class="panel-heading">
       <h3>Syllabus</h3>
       {% if owner_view %}<a class="btn-secondary action-right" href="/courses/{{ course.id }}/syllabus/edit/">Edit syllabus</a>{% endif %}
@@ -113,13 +127,13 @@
     </form>
   </section>
   <!-- Then Materials under Syllabus/Chat -->
-  <section class="panel">
+  <section class="panel" id="materials">
     <h3>Materials</h3>
     <ul>
       {% for m in course.materials.all %}
         <li>
           <a href="{{ m.file.url }}" target="_blank" rel="noopener noreferrer">{{ m.title }}</a>
-          <span class="muted">({{ m.size_bytes }} bytes)</span>
+          <span class="muted">({{ m.size_bytes|filesize }}, {{ m.mime|default:"file" }}, {{ m.created_at|date:"Y-m-d H:i" }})</span>
           {% if owner_view %}
           <form method="post" action="/materials/{{ m.id }}/delete/" class="inline">
             {% csrf_token %}
@@ -128,7 +142,7 @@
           {% endif %}
         </li>
       {% empty %}
-        <li>No materials yet.</li>
+        <li class="muted">No materials yet.</li>
       {% endfor %}
     </ul>
     {% if owner_view %}
@@ -147,7 +161,7 @@
   {% endif %}
 
   {% if owner_view %}
-  <section class="panel">
+  <section class="panel" id="assignments">
     <h3>Course enrolment</h3>
     <p class="muted">Teacher-only view. Manage enrolments.</p>
     <ul>
@@ -202,9 +216,10 @@
   {% endif %}
 
   {% if not owner_view and is_enrolled %}
-  <section class="panel">
+  <a href="#your-grades" class="sr-only">Skip to grades</a>
+  <section class="panel" aria-live="polite">
     <div class="panel-heading">
-      <h3>Your Grades</h3>
+      <h3 id="your-grades">Your Grades</h3>
     </div>
     {% if student_grades and student_grades.grades %}
       <ul>
@@ -219,7 +234,7 @@
   </section>
   {% endif %}
 
-  <section class="panel">
+  <section class="panel" id="feedback">
     <div class="panel-heading">
       <h3>Assignments</h3>
       {% if owner_view %}

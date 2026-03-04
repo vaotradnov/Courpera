@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Your Grades - Courpera{% endblock %}
+{% block content %}
+  <a href="#grades" class="sr-only">Skip to grades</a>
+  <section class="panel">
+    <div class="panel-heading">
+      <h2 id="grades">Your Grades</h2>
+    </div>
+    {% if rows %}
+      <div class="table-wrap" aria-live="polite">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Course</th>
+              <th>Percent</th>
+              <th>Assignments</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for row in rows %}
+            <tr>
+              <td><a href="/courses/{{ row.course.id }}/">{{ row.course.title }}</a></td>
+              <td>{{ row.percent }}%</td>
+              <td>
+                {% if row.grades %}
+                  <ul>
+                  {% for g in row.grades %}
+                    <li>{{ g.assignment.title }}: {{ g.achieved_marks }}/{{ g.max_marks }}</li>
+                  {% endfor %}
+                  </ul>
+                {% else %}
+                  <span class="muted">No released marks</span>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">You are not enrolled in any courses yet.</p>
+    {% endif %}
+  </section>
+{% endblock %}
+

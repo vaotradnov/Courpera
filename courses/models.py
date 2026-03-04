@@ -22,6 +22,19 @@ class Course(models.Model):
     # Teacher-editable syllabus and outcomes (one item per line)
     syllabus = models.TextField(blank=True)
     outcomes = models.TextField(blank=True)
+    # 16.04: Catalogue metadata and thumbnail
+    subject = models.CharField(max_length=100, blank=True)
+    level = models.CharField(
+        max_length=20,
+        choices=(
+            ("beginner", "Beginner"),
+            ("intermediate", "Intermediate"),
+            ("advanced", "Advanced"),
+        ),
+        default="beginner",
+    )
+    language = models.CharField(max_length=50, default="English")
+    thumbnail = models.ImageField(upload_to="thumbnails/", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

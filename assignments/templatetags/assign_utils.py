@@ -21,6 +21,26 @@ def time_until(dt):
     """
     if not dt:
         return ""
+
+
+@register.filter
+def filesize(num):
+    """Human-readable file size (B/KB/MB/GB).
+
+    Accepts int/float/str; returns a compact string like '1.2 MB'.
+    """
+    try:
+        n = float(num or 0)
+    except Exception:
+        n = 0.0
+    units = ["B", "KB", "MB", "GB"]
+    i = 0
+    while n >= 1024 and i < len(units) - 1:
+        n /= 1024.0
+        i += 1
+    if i == 0:
+        return f"{int(n)} {units[i]}"
+    return f"{n:.1f} {units[i]}"
     try:
         now = timezone.now()
         delta = dt - now

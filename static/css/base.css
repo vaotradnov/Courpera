@@ -82,6 +82,42 @@ a:hover, a:focus { text-decoration: underline; }
 .badge-ok { color: #2a7; border-color: #2a7; }
 .badge-warn { color: #c33; border-color: #c33; }
 
+/* Spacing and width utilities */
+.pt-1 { padding-top: .25rem; }
+.max-w-620 { max-width: 620px; }
+
+/* Focus outlines for accessibility */
+:focus { outline: 3px solid rgba(18,100,163,0.6); outline-offset: 2px; }
+a:focus, button:focus, input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 3px rgba(18,100,163,0.25); }
+
+/* Live region helper */
+.sr-live { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+
+/* Thumbnails */
+.thumb { width: 100%; height: auto; border-radius: 4px; display: block; }
+
+/* Button grouping for toolbars */
+.btn-group { display: inline-flex; gap: .5rem; align-items: center; }
+.chip.status { font-weight: 600; }
+
+/* Grid helpers for key-value forms */
+.kv-span { grid-column: 1 / -1; margin: .25rem 0 .5rem; }
+
+/* Compact help text */
+.help { font-size: .9rem; line-height: 1.35; }
+
+/* Section divider */
+.section-divider { height: 1px; background: var(--cp-colour-border); margin: 1rem 0; }
+
+/* Utility to hide via JS without inline styles */
+.hidden { display: none; }
+
+/* Section headings inside panels */
+.section-heading { margin: .75rem 0 .5rem; font-weight: 600; }
+
+/* Inline field row (input + chips) */
+.inline-field { display: inline-flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+
 @media (max-width: 640px) {
   .question-actions { gap: .15rem; }
   .icon-btn { width: 26px; height: 26px; }
@@ -177,3 +213,6 @@ a:hover, a:focus { text-decoration: underline; }
 /* Panel heading for right-aligned actions */
 .panel-heading { position: relative; display: flex; align-items: center; justify-content: flex-start; gap: .5rem; }
 .panel-heading .action-right { position: absolute; right: 1.25rem; top: 50%; transform: translateY(-50%); }
+.subnav { display: flex; gap: .75rem; align-items: center; flex-wrap: wrap; margin: .5rem 0 1rem; }
+.subnav a { color: var(--cp-colour-primary); }
+.subnav .muted { margin-left: auto; }

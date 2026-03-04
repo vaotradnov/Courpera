@@ -6,8 +6,26 @@
     <p>Welcome, {{ request.user.username }}. This area is restricted to students.</p>
     <ul>
       <li><a href="/accounts/profile/">Edit profile</a></li>
+      <li><a href="/accounts/grades/">Your grades</a></li>
       <li><a href="/docs/">API docs</a></li>
     </ul>
+  </section>
+
+  <section class="panel">
+    <h3>Upcoming deadlines</h3>
+    {% if upcoming %}
+      <ul>
+        {% for it in upcoming %}
+          <li>
+            <strong>{{ it.assignment.title }}</strong> – {{ it.course.title }}
+            <span class="muted">(Due {{ it.deadline }})</span>
+            <a class="btn-link" href="/courses/{{ it.course.id }}/">Resume</a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">No upcoming deadlines.</p>
+    {% endif %}
   </section>
 
   <section class="panel">

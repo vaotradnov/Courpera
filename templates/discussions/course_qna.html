@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Q&A - {{ course.title }}{% endblock %}
+{% block content %}
+  <section class="panel">
+    <div class="panel-heading">
+      <h2>Q&amp;A - {{ course.title }}</h2>
+      <a class="btn-secondary action-right" href="/courses/{{ course.id }}/">Back to course</a>
+    </div>
+    <form method="post" action="">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="ask" />
+      <div class="kv">
+        <label for="q_title">Title</label>
+        <input id="q_title" name="title" type="text" maxlength="200" />
+        <label for="q_body">Details</label>
+        <textarea id="q_body" name="body" rows="4"></textarea>
+      </div>
+      <button type="submit">Ask Question</button>
+    </form>
+  </section>
+
+  <section class="panel">
+    <h3>Questions</h3>
+    {% if items %}
+      <ul>
+        {% for it in items %}
+          <li>
+            {% if it.q.pinned %}<span class="chip">Pinned</span>{% endif %}
+            <strong>{{ it.q.title }}</strong> — <span class="muted">{{ it.votes }} upvotes</span>
+            <div class="muted">Asked by {{ it.q.author.username }} on {{ it.q.created_at }}</div>
+            <form method="post" action="" class="inline">
+              {% csrf_token %}
+              <input type="hidden" name="question_id" value="{{ it.q.id }}" />
+              <button type="submit" name="action" value="upvote" class="link-btn">Upvote</button>
+              {% if course.owner_id == request.user.id %}
+                <button type="submit" name="action" value="pin" class="link-btn">{% if it.q.pinned %}Unpin{% else %}Pin{% endif %}</button>
+              {% endif %}
+            </form>
+            {% if it.replies %}
+              <ul>
+                {% for r in it.replies %}
+                  <li>{{ r.author.username }}: {{ r.body }}</li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+            <form method="post" action="" class="mt-2">
+              {% csrf_token %}
+              <input type="hidden" name="action" value="reply" />
+              <input type="hidden" name="question_id" value="{{ it.q.id }}" />
+              <label class="sr-only" for="reply_{{ it.q.id }}">Reply</label>
+              <input id="reply_{{ it.q.id }}" name="body" type="text" />
+              <button type="submit">Reply</button>
+            </form>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">No questions yet. Be the first to ask.</p>
+    {% endif %}
+  </section>
+{% endblock %}
+

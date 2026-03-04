@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     "ui",
     "api",
     "assignments",
+    "discussions",
 ]
 
 # Optional: include sidecar if installed to serve local Swagger/Redoc assets
@@ -59,6 +60,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "config.middleware.UserTimezoneMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -77,6 +79,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "courses.context_processors.course_subjects",
             ],
         },
     }
@@ -97,7 +100,7 @@ DATABASES = {
 
 # Internationalisation (Canadian English; Mountain Time zone for Calgary)
 LANGUAGE_CODE = "en-ca"
-TIME_ZONE = "America/Edmonton"
+TIME_ZONE = "Europe/London"
 USE_I18N = True
 USE_TZ = True
 

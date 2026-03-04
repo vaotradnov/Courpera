@@ -49,6 +49,7 @@
           <button type="submit" name="action" value="set_deadline_delta" class="btn-link" formnovalidate>Set</button>
         </div>
         {{ meta_form.deadline.errors }}
+        <p class="muted">Times shown in your timezone: {{ request.user.profile.timezone|default:'Europe/London' }}</p>
         <label for="id_attempts_allowed">Attempts</label>
         {{ meta_form.attempts_allowed }}
         {{ meta_form.attempts_allowed.errors }}

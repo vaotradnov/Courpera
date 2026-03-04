@@ -20,6 +20,11 @@ class RegistrationForm(UserCreationForm):
     """
 
     email = forms.EmailField(required=True)
+    timezone = forms.ChoiceField(required=False, choices=[
+        ("Europe/London", "Europe/London"),
+        ("America/Edmonton", "America/Edmonton"),
+        ("UTC", "UTC"),
+    ])
     role = forms.ChoiceField(choices=Role.choices, initial=Role.STUDENT)
     secret_word = forms.CharField(
         required=True,
@@ -96,13 +101,17 @@ class ProfileForm(forms.ModelForm):
 
     class Meta:
         model = UserProfile
-        fields = ("full_name", "phone", "avatar")
+        fields = ("full_name", "phone", "avatar", "timezone")
 
     def __init__(self, *args, **kwargs):
         self.user = kwargs.pop("user", None)
         super().__init__(*args, **kwargs)
         if self.user:
             self.fields["email"].initial = getattr(self.user, "email", "")
+        try:
+            self.fields["timezone"].initial = getattr(self.instance, "timezone", "Europe/London")
+        except Exception:
+            pass
 
     def clean_avatar(self):
         f = self.cleaned_data.get("avatar")

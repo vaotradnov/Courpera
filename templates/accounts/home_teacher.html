@@ -10,5 +10,21 @@
       <li><a href="/docs/">API docs</a></li>
     </ul>
   </section>
+  <section class="panel">
+    <h3>Your courses</h3>
+    {% if owned %}
+      <ul>
+        {% for c in owned %}
+          <li>
+            <a href="/courses/{{ c.id }}/">{{ c.title }}</a>
+            <span class="muted">({{ c.enrol_count }} enrolled)</span>
+            <a class="btn-link" href="/courses/{{ c.id }}/gradebook/">Gradebook</a>
+            <a class="btn-link" href="/assignments/course/{{ c.id }}/">Assignments</a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">You have no courses yet.</p>
+    {% endif %}
+  </section>
 {% endblock %}
-

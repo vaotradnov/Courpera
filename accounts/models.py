@@ -44,6 +44,9 @@ class UserProfile(models.Model):
     avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
     avatar_url = models.URLField(blank=True)
 
+    # 16.06: Per-user timezone preference
+    timezone = models.CharField(max_length=64, blank=True, default="Europe/London")
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -5,6 +5,7 @@ from django import forms
 
 from .models import Course
 from django import forms
+from .context_processors import DEFAULT_SUBJECTS
 
 
 class CourseForm(forms.ModelForm):
@@ -12,7 +13,62 @@ class CourseForm(forms.ModelForm):
 
     class Meta:
         model = Course
-        fields = ("title", "description")
+        fields = ("title", "description", "subject", "level", "language", "thumbnail")
+
+    # Aux fields for subject selection + custom option
+    subject_choice = forms.ChoiceField(required=False)
+    new_subject = forms.CharField(required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Build subject choices from existing + defaults
+        try:
+            from .models import Course as _Course
+
+            existing = list(
+                _Course.objects.exclude(subject="")
+                .values_list("subject", flat=True)
+                .distinct()
+                .order_by("subject")
+            )
+        except Exception:
+            existing = []
+        seen = set()
+        opts = []
+        for s in existing + DEFAULT_SUBJECTS:
+            if s and s not in seen:
+                opts.append((s, s))
+                seen.add(s)
+        opts.append(("__other__", "Other (add new)…"))
+        self.fields["subject_choice"].choices = [("", "Select subject")] + opts
+
+        # Initialise selection
+        current = (self.instance.subject or "").strip() if getattr(self, "instance", None) else ""
+        if current and current in seen:
+            self.fields["subject_choice"].initial = current
+        elif current:
+            self.fields["subject_choice"].initial = "__other__"
+            self.fields["new_subject"].initial = current
+
+        # Place fields in a helpful order for templates using as_p/as_table
+        self.order_fields(["title", "description", "subject_choice", "new_subject", "level", "language", "thumbnail"])
+
+    def clean(self):
+        cleaned = super().clean()
+        # Resolve subject from either dropdown or new text
+        choice = (cleaned.get("subject_choice") or "").strip()
+        newval = (cleaned.get("new_subject") or "").strip()
+        posted_subject = (cleaned.get("subject") or "").strip()
+        subject_val = ""
+        if choice and choice != "__other__":
+            subject_val = choice
+        elif newval:
+            subject_val = newval
+        elif posted_subject:
+            # Backwards compatibility if only 'subject' was posted
+            subject_val = posted_subject
+        cleaned["subject"] = subject_val
+        return cleaned
 
 
 class SyllabusForm(forms.ModelForm):

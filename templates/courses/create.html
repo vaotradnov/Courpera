@@ -8,7 +8,7 @@
         <a href="/courses/{{ course.id }}/" class="btn-secondary action-right">Back to course</a>
       {% endif %}
     </div>
-    <form method="post" action="" class="course-form">
+    <form method="post" action="" class="course-form" enctype="multipart/form-data">
       {% csrf_token %}
       {{ form.non_field_errors }}
       <div class="kv">
@@ -16,6 +16,18 @@
         {{ form.title }}
         <label for="id_description">Description</label>
         {{ form.description }}
+        <label for="id_subject_choice">Subject</label>
+        {{ form.subject_choice }}
+        <div id="new-subject-wrap">
+          <label for="id_new_subject">Or add new subject</label>
+          {{ form.new_subject }}
+        </div>
+        <label for="id_level">Level</label>
+        {{ form.level }}
+        <label for="id_language">Language</label>
+        {{ form.language }}
+        <label for="id_thumbnail">Thumbnail</label>
+        {{ form.thumbnail }}
       </div>
       {% if is_edit %}
         <button type="submit" class="btn">Update course</button>

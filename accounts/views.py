@@ -36,7 +36,7 @@ from activity.forms import StatusForm
 from activity.models import Status
 from courses.models import Enrolment, Course
 from assignments.utils import compute_course_percentage
-from assignments.models import Grade
+from assignments.models import Grade, Assignment
 
 
 class CourperaLoginView(LoginView):
@@ -99,7 +99,14 @@ def home(request: HttpRequest) -> HttpResponse:
 @login_required
 @role_required(Role.TEACHER)
 def home_teacher(request: HttpRequest) -> HttpResponse:
-    return render(request, "accounts/home_teacher.html")
+    # 16.04: Teaching dashboard with quick links and enrolment counts
+    from django.db.models import Count as _Count
+    owned = (
+        Course.objects.filter(owner=request.user)
+        .annotate(enrol_count=_Count("enrolments"))
+        .order_by("title")
+    )
+    return render(request, "accounts/home_teacher.html", {"owned": owned})
 
 
 @login_required
@@ -107,7 +114,20 @@ def home_teacher(request: HttpRequest) -> HttpResponse:
 def home_student(request: HttpRequest) -> HttpResponse:
     updates = Status.objects.filter(user=request.user)[:20]
     form = StatusForm()
-    return render(request, "accounts/home_student.html", {"updates": updates, "status_form": form})
+    # 16.04: My Learning dashboard items (upcoming deadlines and resume links)
+    from django.utils import timezone as _tz
+    enrol_courses = [e.course for e in Enrolment.objects.filter(student=request.user).select_related("course")]
+    upcoming: list[dict] = []
+    if enrol_courses:
+        ids = [c.id for c in enrol_courses]
+        qs = (
+            Assignment.objects.filter(course_id__in=ids, is_published=True, deadline__isnull=False, deadline__gt=_tz.now())
+            .select_related("course")
+            .order_by("deadline")[:10]
+        )
+        for a in qs:
+            upcoming.append({"course": a.course, "assignment": a, "deadline": a.deadline})
+    return render(request, "accounts/home_student.html", {"updates": updates, "status_form": form, "upcoming": upcoming})
 
 
 @login_required
