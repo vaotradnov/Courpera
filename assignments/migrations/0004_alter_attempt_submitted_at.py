@@ -5,15 +5,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('assignments', '0003_assignment_is_published'),
+        ("assignments", "0003_assignment_is_published"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='attempt',
-            name='submitted_at',
+            model_name="attempt",
+            name="submitted_at",
             field=models.DateTimeField(default=django.utils.timezone.now),
         ),
     ]

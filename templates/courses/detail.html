@@ -185,7 +185,7 @@
     <form method="post" action="/courses/{{ course.id }}/add-student/">
       {% csrf_token %}
       <div class="kv">
-        <label for="id_query">Username, e-mail, or Student ID</label>
+        <label for="id_query">Username, email, or Student ID</label>
         {{ add_form.query }}
       </div>
       <button type="submit" name="action" value="search">Search</button>
@@ -314,5 +314,5 @@
   </section>
   {% endif %}
 
-  
+
 {% endblock %}

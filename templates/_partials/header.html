@@ -45,7 +45,7 @@
         {% if request.user.profile and request.user.profile.role == 'teacher' %}
         <form method="get" action="/accounts/search/" class="header-search">
           <label for="hdrq" class="sr-only">Search users</label>
-          <input id="hdrq" name="q" type="search" placeholder="Search users (name, e-mail, ID)" class="input" />
+          <input id="hdrq" name="q" type="search" placeholder="Search users (name, email, ID)" class="input" />
         </form>
         {% endif %}
         <span class="flex-spacer"></span>

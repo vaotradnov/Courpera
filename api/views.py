@@ -1,29 +1,31 @@
 """REST API v1 viewsets and endpoints (Stage 8)."""
+
 from __future__ import annotations
+
+from typing import Any, cast
 
 from django.contrib.auth import get_user_model
 from django.db.models import Q
-from rest_framework import viewsets, mixins, status
-from rest_framework.exceptions import PermissionDenied, ValidationError
-from rest_framework.decorators import action, api_view, permission_classes
-from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view
+from rest_framework import mixins, status, viewsets
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.response import Response
 
-from accounts.models import UserProfile
+from activity.models import Status
 from courses.models import Course, Enrolment
 from courses.models_feedback import Feedback
 from materials.models import Material
-from activity.models import Status
+
+from .permissions import IsAuthenticatedOrReadOnly, IsTeacher
 from .serializers import (
-    UserSerializer,
     CourseSerializer,
     EnrolmentSerializer,
-    MaterialSerializer,
     FeedbackSerializer,
+    MaterialSerializer,
     StatusSerializer,
+    UserSerializer,
 )
-from .permissions import IsAuthenticatedOrReadOnly, IsTeacher, IsStudent
 
 User = get_user_model()
 
@@ -35,7 +37,7 @@ def _is_owner(user, course: Course) -> bool:
 def _is_enrolled(user, course: Course) -> bool:
     if not getattr(user, "is_authenticated", False):
         return False
-    return Enrolment.objects.filter(course=course, student=user).exists()
+    return Enrolment.objects.filter(course=course, student_id=user.id).exists()
 
 
 @extend_schema_view(
@@ -75,7 +77,9 @@ class CourseViewSet(viewsets.ModelViewSet):
     def retrieve(self, request, *args, **kwargs):
         course = self.get_object()
         if not (_is_owner(request.user, course) or _is_enrolled(request.user, course)):
-            return Response({"detail": "Enrol to access this course."}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"detail": "Enrol to access this course."}, status=status.HTTP_403_FORBIDDEN
+            )
         return super().retrieve(request, *args, **kwargs)
 
 
@@ -104,9 +108,9 @@ class EnrolmentViewSet(viewsets.ModelViewSet):
         )
         course_id = self.request.query_params.get("course")
         if role == "student":
-            qs = base.filter(student=user)
+            qs = base.filter(student_id=user.id)
         elif role == "teacher":
-            qs = base.filter(course__owner=user)
+            qs = base.filter(course__owner_id=user.id)
         else:
             qs = Enrolment.objects.none()
         if course_id:
@@ -120,7 +124,7 @@ class EnrolmentViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Only students can enrol.")
         course = serializer.validated_data.get("course")
         # Prevent duplicate enrolments with a friendly 400 instead of DB error
-        if Enrolment.objects.filter(course=course, student=self.request.user).exists():
+        if Enrolment.objects.filter(course=course, student_id=self.request.user.id).exists():
             raise ValidationError({"detail": "Already enrolled in this course."})
         serializer.save(student=self.request.user)
 
@@ -150,7 +154,9 @@ class MaterialViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets
         if not user.is_authenticated:
             return Material.objects.none()
         # Owners can see their course materials; students see where enrolled
-        qs = qs.filter(Q(course__owner=user) | Q(course__enrolments__student=user)).distinct()
+        qs = qs.filter(
+            Q(course__owner_id=user.id) | Q(course__enrolments__student_id=user.id)
+        ).distinct()
         course_id = self.request.query_params.get("course")
         if course_id:
             qs = qs.filter(course_id=course_id)
@@ -172,7 +178,7 @@ class FeedbackViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         course_id = self.request.query_params.get("course")
-        qs = Feedback.objects.select_related("course", "student")
+        qs = cast(Any, Feedback).objects.select_related("course", "student")
         if course_id:
             qs = qs.filter(course_id=course_id)
         return qs.order_by("-created_at")
@@ -185,7 +191,7 @@ class FeedbackViewSet(viewsets.ModelViewSet):
             raise PermissionDenied("Authentication required.")
         if getattr(getattr(user, "profile", None), "role", None) != "student":
             raise PermissionDenied("Only students can leave feedback.")
-        if not Enrolment.objects.filter(course=course, student=user).exists():
+        if not Enrolment.objects.filter(course=course, student_id=user.id).exists():
             raise PermissionDenied("Enrol before leaving feedback.")
         serializer.save(student=user)
 
@@ -215,7 +221,7 @@ class StatusViewSet(viewsets.ModelViewSet):
         # Students: own updates; teachers: none for now (could extend later)
         role = getattr(getattr(user, "profile", None), "role", None)
         if role == "student":
-            return Status.objects.filter(user=user).order_by("-created_at")
+            return Status.objects.filter(user_id=user.id).order_by("-created_at")
         return Status.objects.none()
 
     def perform_create(self, serializer):
@@ -226,12 +232,16 @@ class StatusViewSet(viewsets.ModelViewSet):
 
 @api_view(["GET"])
 @permission_classes([IsTeacher])
-@extend_schema(tags=["Search"]) 
+@extend_schema(tags=["Search"])
 def search_users(request):
     """Teacher-only search for users by username or email (partial, case-insensitive)."""
     q = request.query_params.get("q", "").strip()
     qs = User.objects.select_related("profile").none()
     if q:
-        qs = User.objects.select_related("profile").filter(Q(username__icontains=q) | Q(email__icontains=q)).order_by("username")[:50]
+        qs = (
+            User.objects.select_related("profile")
+            .filter(Q(username__icontains=q) | Q(email__icontains=q))
+            .order_by("username")[:50]
+        )
     data = UserSerializer(qs, many=True).data
     return Response({"count": len(data), "results": data})

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from django.test import TestCase
 from django.contrib.auth.models import User
+from django.test import TestCase
 from rest_framework.test import APIClient
 
 from accounts.models import Role
@@ -56,4 +56,3 @@ class ApiSmokeTests(TestCase):
         # Materials filter by course should be 200 even if empty
         r = self.client.get(f"/api/v1/materials/?course={self.course.id}")
         assert r.status_code == 200
-

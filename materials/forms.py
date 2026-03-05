@@ -1,4 +1,5 @@
 """Forms for uploading course materials."""
+
 from __future__ import annotations
 
 from django import forms
@@ -18,4 +19,3 @@ class MaterialUploadForm(forms.ModelForm):
         if f:
             validate_upload(f)
         return f
-

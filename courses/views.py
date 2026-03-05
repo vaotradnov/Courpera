@@ -1,25 +1,33 @@
 """Course list/detail and enrolment actions (Stage 5)."""
+
 from __future__ import annotations
 
+import csv
+import re
+from typing import Any, cast
+
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
 from django.core.exceptions import PermissionDenied
-from django.http import HttpRequest, HttpResponse, HttpResponseForbidden
+from django.core.paginator import Paginator
+from django.db.models import Avg, Case, CharField, Count, F, IntegerField, Q, Value, When
+from django.db.models.functions import Cast, Concat, Length, Substr
+from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.cache import cache_page
+from django.views.decorators.vary import vary_on_cookie
 
 from accounts.decorators import role_required
 from accounts.models import Role
-from django.contrib.auth.models import User
-from django.db.models import Q, CharField, F, Value, Count, Avg, Case, When, IntegerField
-from django.db.models.functions import Cast, Concat, Length, Substr
-import re
-from .forms import CourseForm, AddStudentForm, SyllabusForm
-from .models import Course, Enrolment
-from .models_feedback import Feedback
-from .forms_feedback import FeedbackForm
 from assignments.models import Assignment, Attempt, Grade
 from assignments.utils import compute_course_percentage
-import csv
+
+from .forms import AddStudentForm, CourseForm, SyllabusForm
+from .forms_feedback import FeedbackForm
+from .models import Course, Enrolment
+from .models_feedback import Feedback
 
 
 def _is_enrolled(user, course: Course) -> bool:
@@ -28,6 +36,24 @@ def _is_enrolled(user, course: Course) -> bool:
     return Enrolment.objects.filter(course=course, student=user).exists()
 
 
+def _catalogue_cache_decorator():
+    try:
+        enabled = getattr(settings, "CATALOGUE_CACHE_ENABLED", True)
+        seconds = int(getattr(settings, "CATALOGUE_CACHE_SECONDS", 60))
+    except Exception:
+        enabled = True
+        seconds = 60
+    if not enabled:
+
+        def identity(fn):
+            return fn
+
+        return identity
+    return cache_page(seconds)
+
+
+@vary_on_cookie
+@_catalogue_cache_decorator()
 def course_list(request: HttpRequest) -> HttpResponse:
     """Public course catalogue with simple filters and sorting (16.04).
 
@@ -40,15 +66,14 @@ def course_list(request: HttpRequest) -> HttpResponse:
     language = (request.GET.get("language") or "").strip()
     sort = (request.GET.get("sort") or "").strip().lower()
 
-    courses = (
-        Course.objects.select_related("owner")
-        .annotate(
-            enrol_count=Count("enrolments", distinct=True),
-            rating=Avg("feedback__rating"),
-        )
-    )
+    courses = Course.objects.select_related("owner")
+    # Split annotations to avoid mypy plugin inference issues
+    courses = courses.annotate(enrol_count=Count("enrolments", distinct=True))
+    courses = courses.annotate(rating=Avg("feedback__rating"))
     if q:
-        courses = courses.filter(Q(title__icontains=q) | Q(owner__username__icontains=q) | Q(description__icontains=q))
+        courses = courses.filter(
+            Q(title__icontains=q) | Q(owner__username__icontains=q) | Q(description__icontains=q)
+        )
         # naive relevance: title match ranks higher
         courses = courses.annotate(
             rel=Case(
@@ -77,10 +102,24 @@ def course_list(request: HttpRequest) -> HttpResponse:
 
     enrolled_ids = set()
     if request.user.is_authenticated:
-        enrolled_ids = set(Enrolment.objects.filter(student=request.user).values_list("course_id", flat=True))
-    total = courses.count()
+        enrolled_ids = set(
+            Enrolment.objects.filter(student_id=request.user.id).values_list("course_id", flat=True)
+        )
+    # Pagination (9 per page works well with a 3-column grid)
+    try:
+        page_number = int(request.GET.get("page") or 1)
+        if page_number < 1:
+            page_number = 1
+    except Exception:
+        page_number = 1
+    paginator = Paginator(courses, 9)
+    page_obj = paginator.get_page(page_number)
+    total = paginator.count  # reuse paginator's cached count; avoid duplicate COUNT(*) query
     ctx = {
-        "courses": courses,
+        "courses": page_obj.object_list,
+        "paginator": paginator,
+        "page_obj": page_obj,
+        "page": page_obj.number,
         "enrolled_ids": enrolled_ids,
         "role": getattr(getattr(request.user, "profile", None), "role", None),
         "q": q,
@@ -142,12 +181,19 @@ def course_detail(request: HttpRequest, pk: int) -> HttpResponse:
     add_form = None
     feedback_form = None
     if owner_view:
-        roster = Enrolment.objects.filter(course=course).select_related("student").order_by("student__username")
+        roster = (
+            Enrolment.objects.filter(course=course)
+            .select_related("student")
+            .order_by("student__username")
+        )
         add_form = AddStudentForm()
     if is_enrolled:
         # Initialise form with existing feedback if present
-        existing = Feedback.objects.filter(course=course, student=request.user).first()
+        existing = (
+            cast(Any, Feedback).objects.filter(course=course, student_id=request.user.id).first()
+        )
         feedback_form = FeedbackForm(instance=existing)
+
     # Prepare syllabus/outcomes lines for rendering
     def _split_lines(s: str) -> list[str]:
         return [line.strip() for line in (s or "").splitlines() if line.strip()]
@@ -157,15 +203,17 @@ def course_detail(request: HttpRequest, pk: int) -> HttpResponse:
     now = __import__("datetime").datetime.now(tz=None)
     # Use Django timezone to avoid naive
     from django.utils import timezone as _tz
+
     now = _tz.now()
     ann = []
     for a in assignments:
-        if a.type == 'quiz':
+        if a.type == "quiz":
             from assignments.utils import quiz_readiness
-            setattr(a, 'ready_info', quiz_readiness(a))
+
+            a.ready_info = quiz_readiness(a)
         else:
-            setattr(a, 'ready_info', None)
-        setattr(a, 'avail_ok', (a.available_from is None) or (now >= a.available_from))
+            a.ready_info = None
+        a.avail_ok = a.available_from is None or now >= a.available_from
         ann.append(a)
 
     # Attempts left for enrolled students
@@ -173,16 +221,17 @@ def course_detail(request: HttpRequest, pk: int) -> HttpResponse:
         ids = [a.id for a in ann]
         if ids:
             from django.db.models import Count as _Count
+
             used = (
-                Attempt.objects.filter(assignment_id__in=ids, student=request.user)
+                Attempt.objects.filter(assignment_id__in=ids, student_id=request.user.id)
                 .values("assignment_id")
                 .annotate(c=_Count("id"))
             )
             used_map = {row["assignment_id"]: row["c"] for row in used}
             for a in ann:
                 u = used_map.get(a.id, 0)
-                setattr(a, "attempts_used", u)
-                setattr(a, "attempts_left", max(0, (a.attempts_allowed or 0) - u))
+                a.attempts_used = u
+                a.attempts_left = max(0, (a.attempts_allowed or 0) - u)
 
     # Student grades summary for this course (if enrolled)
     student_grades = None
@@ -190,7 +239,7 @@ def course_detail(request: HttpRequest, pk: int) -> HttpResponse:
         released = (
             Grade.objects.filter(
                 course=course,
-                student=request.user,
+                student_id=request.user.id,
                 assignment__is_published=True,
                 released_at__isnull=False,
             )
@@ -208,7 +257,9 @@ def course_detail(request: HttpRequest, pk: int) -> HttpResponse:
         "roster": roster,
         "add_form": add_form,
         "feedback_form": feedback_form,
-        "feedback_list": Feedback.objects.filter(course=course).select_related("student"),
+        "feedback_list": cast(Any, Feedback)
+        .objects.filter(course=course)
+        .select_related("student"),
         # Show published assignments on course page for both teacher and enrolled students
         "assignments": ann,
         "student_grades": student_grades,
@@ -275,14 +326,14 @@ def course_remove_student(request: HttpRequest, pk: int, user_id: int) -> HttpRe
 @login_required
 @role_required(Role.TEACHER)
 def course_add_student(request: HttpRequest, pk: int) -> HttpResponse:
-    """Teacher enrols a student by username or e‑mail (owner only), or searches.
+    """Teacher enrols a student by username or email (owner only), or searches.
 
     Behaviour:
     - If the submitted button named 'action' has value 'search', perform a
-      partial match search on username/e‑mail and render the course detail
+      partial match search on username/email and render the course detail
       with results.
     - Otherwise, attempt to enrol a single user identified by the query
-      (exact username or e‑mail match), then redirect back to detail.
+      (exact username or email match), then redirect back to detail.
     """
     course = get_object_or_404(Course, pk=pk)
     if not course.is_owner(request.user):
@@ -299,7 +350,7 @@ def course_add_student(request: HttpRequest, pk: int) -> HttpResponse:
                     User.objects.select_related("profile")
                     .annotate(id_str=Cast("id", output_field=CharField()))
                     .annotate(pad=Concat(Value("0000000"), F("id_str")))
-                    .annotate(last7=Substr(F("pad"), Length(F("pad")) - Value(6), Value(7)))
+                    .annotate(last7=Substr("pad", Length("pad") - Value(6), Value(7)))
                 )
                 qn = re.sub(r"\D", "", q)
                 filt = (
@@ -310,9 +361,7 @@ def course_add_student(request: HttpRequest, pk: int) -> HttpResponse:
                 if qn:
                     filt = filt | Q(last7__icontains=qn)
                 results = (
-                    base.filter(filt)
-                    .filter(profile__role=Role.STUDENT)
-                    .order_by("username")[:50]
+                    base.filter(filt).filter(profile__role=Role.STUDENT).order_by("username")[:50]
                 )
                 roster = (
                     Enrolment.objects.filter(course=course)
@@ -329,14 +378,16 @@ def course_add_student(request: HttpRequest, pk: int) -> HttpResponse:
                     "searched": True,
                 }
                 return render(request, "courses/detail.html", ctx)
-            # Enrol flow: exact match on username or e-mail
+            # Enrol flow: exact match on username or email
             target = (
                 User.objects.select_related("profile").filter(username__iexact=q).first()
                 or User.objects.select_related("profile").filter(email__iexact=q).first()
-                or User.objects.select_related("profile").filter(profile__student_number__iexact=q).first()
+                or User.objects.select_related("profile")
+                .filter(profile__student_number__iexact=q)
+                .first()
             )
             if not target:
-                messages.error(request, "No user found for that username or e‑mail.")
+                messages.error(request, "No user found for that username or email.")
                 return redirect("courses:detail", pk=course.pk)
             profile = getattr(target, "profile", None)
             if not profile or profile.role != Role.STUDENT:
@@ -360,17 +411,18 @@ def course_gradebook(request: HttpRequest, pk: int) -> HttpResponse:
     course = get_object_or_404(Course, pk=pk)
     if not course.is_owner(request.user):
         raise PermissionDenied
-    assignments = list(Assignment.objects.filter(course=course, is_published=True).order_by("title"))
+    assignments = list(
+        Assignment.objects.filter(course=course, is_published=True).order_by("title")
+    )
     enrolments = list(
         Enrolment.objects.filter(course=course)
         .select_related("student", "student__profile")
         .order_by("student__username")
     )
-    grades = (
-        Grade.objects.filter(course=course, assignment__in=assignments)
-        .select_related("student", "assignment")
+    grades = Grade.objects.filter(course=course, assignment__in=assignments).select_related(
+        "student", "assignment"
     )
-    grade_rows = {}
+    grade_rows: dict[int, dict[int, Grade]] = {}
     for g in grades:
         row = grade_rows.setdefault(g.student_id, {})
         row[g.assignment_id] = g
@@ -394,20 +446,20 @@ def course_gradebook(request: HttpRequest, pk: int) -> HttpResponse:
 @login_required
 @role_required(Role.TEACHER)
 def course_gradebook_csv(request: HttpRequest, pk: int) -> HttpResponse:
-    """CSV export for gradebook: username, S-ID, each assignment X/Y, course %.
-    """
+    """CSV export for gradebook: username, S-ID, each assignment X/Y, course %."""
     course = get_object_or_404(Course, pk=pk)
     if not course.is_owner(request.user):
         raise PermissionDenied
-    assignments = list(Assignment.objects.filter(course=course, is_published=True).order_by("title"))
+    assignments = list(
+        Assignment.objects.filter(course=course, is_published=True).order_by("title")
+    )
     enrolments = list(
         Enrolment.objects.filter(course=course)
         .select_related("student", "student__profile")
         .order_by("student__username")
     )
-    grades = (
-        Grade.objects.filter(course=course, assignment__in=assignments)
-        .select_related("student", "assignment")
+    grades = Grade.objects.filter(course=course, assignment__in=assignments).select_related(
+        "student", "assignment"
     )
     grade_map: dict[tuple[int, int], Grade] = {(g.student_id, g.assignment_id): g for g in grades}
 
@@ -423,7 +475,11 @@ def course_gradebook_csv(request: HttpRequest, pk: int) -> HttpResponse:
         for a in assignments:
             g = grade_map.get((e.student_id, a.id))
             if g:
-                ach = int(g.achieved_marks) if float(g.achieved_marks or 0).is_integer() else g.achieved_marks
+                ach = (
+                    int(g.achieved_marks)
+                    if float(g.achieved_marks or 0).is_integer()
+                    else g.achieved_marks
+                )
                 mx = int(g.max_marks) if float(g.max_marks or 0).is_integer() else g.max_marks
                 row.append(f"{ach}/{mx}")
             else:
@@ -440,7 +496,7 @@ def course_unenrol(request: HttpRequest, pk: int) -> HttpResponse:
     """Student unenrols from a course (owner unaffected)."""
     course = get_object_or_404(Course, pk=pk)
     if request.method == "POST":
-        Enrolment.objects.filter(course=course, student=request.user).delete()
+        Enrolment.objects.filter(course=course, student_id=request.user.id).delete()
         messages.success(request, "Unenrolled from course.")
     return redirect("courses:list")
 
@@ -450,11 +506,13 @@ def course_unenrol(request: HttpRequest, pk: int) -> HttpResponse:
 def course_feedback(request: HttpRequest, pk: int) -> HttpResponse:
     """Create or update feedback for a course (student-only, enrolled)."""
     course = get_object_or_404(Course, pk=pk)
-    if not Enrolment.objects.filter(course=course, student=request.user).exists():
+    if not Enrolment.objects.filter(course=course, student_id=request.user.id).exists():
         messages.error(request, "Please enrol before leaving feedback.")
         return redirect("courses:detail", pk=course.pk)
     if request.method == "POST":
-        existing = Feedback.objects.filter(course=course, student=request.user).first()
+        existing = (
+            cast(Any, Feedback).objects.filter(course=course, student_id=request.user.id).first()
+        )
         form = FeedbackForm(request.POST, instance=existing)
         if form.is_valid():
             fb = form.save(commit=False)
@@ -465,9 +523,3 @@ def course_feedback(request: HttpRequest, pk: int) -> HttpResponse:
         else:
             messages.error(request, "Invalid feedback.")
     return redirect("courses:detail", pk=course.pk)
-
-
-
-
-
-

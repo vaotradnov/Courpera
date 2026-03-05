@@ -68,8 +68,8 @@
       </div>
       <button type="submit" name="action" value="update_meta" class="btn-secondary">Save details</button>
     </form>
-    <p class="muted">All times in Mountain Time.</p>
-    
+    <p class="muted">All times follow your selected timezone.</p>
+
 
     {% if assignment.type == 'exam' %}
       {% if locked %}
@@ -79,41 +79,48 @@
       <ul>
         {% for q in assignment.questions.all %}
           <li>
-            <div class="answer-row">
-              <div><strong>Q{{ q.order }}.</strong> {{ q.text }}</div>
-              {% if not locked %}
-              <form method="post" action="" class="inline">
-                {% csrf_token %}
-                <input type="hidden" name="action" value="update_question" />
-                <input type="hidden" name="question_id" value="{{ q.id }}" />
-                <input type="text" name="text" value="{{ q.text }}" class="input-sm w-50" aria-label="Edit question" />
-                <button type="submit" class="btn-secondary">Save</button>
-              </form>
-              {% endif %}
-            </div>
-            {% if not locked %}
-            <form method="post" action="" class="inline" data-confirm="Delete this question?">
+            <form method="post" action="" class="inline">
               {% csrf_token %}
-              <input type="hidden" name="action" value="delete_question" />
               <input type="hidden" name="question_id" value="{{ q.id }}" />
-              <button type="submit" class="btn-link">Delete</button>
+              <input type="text" name="question_text" value="{{ q.text }}" class="input" />
+              <button type="submit" name="action" value="update_question" class="btn-secondary">Update</button>
+              {% if not locked %}
+                <button type="submit" name="action" value="delete_question" class="btn-danger">Delete</button>
+              {% endif %}
+            </form>
+            <ul>
+              {% for ch in q.choices.all %}
+                <li>
+                  <form method="post" action="" class="inline">
+                    {% csrf_token %}
+                    <input type="hidden" name="choice_id" value="{{ ch.id }}" />
+                    <input type="text" name="choice_text" value="{{ ch.text }}" class="input-sm" />
+                    <label><input type="checkbox" name="is_correct" {% if ch.is_correct %}checked{% endif %} /> Correct</label>
+                    <button type="submit" name="action" value="update_choice" class="btn-secondary">Update</button>
+                    {% if not locked %}
+                      <button type="submit" name="action" value="delete_choice" class="btn-danger">Delete</button>
+                    {% endif %}
+                  </form>
+                </li>
+              {% endfor %}
+            </ul>
+            {% if not locked %}
+            <form method="post" action="">
+              {% csrf_token %}
+              <input type="hidden" name="question_id" value="{{ q.id }}" />
+              <input type="text" name="choice_text" placeholder="Choice text" class="input-sm" />
+              <label><input type="checkbox" name="is_correct" /> Correct</label>
+              <button type="submit" name="action" value="add_choice" class="btn">Add choice</button>
             </form>
             {% endif %}
           </li>
-        {% empty %}
-          <li class="muted">No questions yet.</li>
         {% endfor %}
       </ul>
       {% if not locked %}
-      <h4>Add a question</h4>
       <form method="post" action="">
         {% csrf_token %}
-        <input type="hidden" name="action" value="add_question" />
-        <div class="kv">
-          <label for="id_text">Question</label>
-          {{ q_form.text }}
-        </div>
-        <button type="submit" class="btn">Add question</button>
+        <input type="text" name="question_text" placeholder="Question text" class="input" />
+        <button type="submit" name="action" value="add_question" class="btn">Add question</button>
       </form>
       {% endif %}
     {% endif %}

@@ -1,24 +1,27 @@
 from __future__ import annotations
 
 import asyncio
-import pytest
-from channels.testing import WebsocketCommunicator
-from channels.db import database_sync_to_async
-from django.contrib.auth.models import User
-from django.test import Client
-from django.conf import settings
 import json
 
-from courses.models import Course, Enrolment
+import pytest
+from channels.db import database_sync_to_async
+from channels.testing import WebsocketCommunicator
+from django.conf import settings
+from django.contrib.auth.models import User
+from django.test import Client
+
 from config.asgi import application
+from courses.models import Course, Enrolment
 
 
 @database_sync_to_async
 def _setup_users_and_course():
     teacher = User.objects.create_user(username="tperm", password="pw")
-    teacher.profile.role = "teacher"; teacher.profile.save(update_fields=["role"])
+    teacher.profile.role = "teacher"
+    teacher.profile.save(update_fields=["role"])
     student = User.objects.create_user(username="sperm", password="pw")
-    student.profile.role = "student"; student.profile.save(update_fields=["role"])
+    student.profile.role = "student"
+    student.profile.save(update_fields=["role"])
     other = User.objects.create_user(username="xperm", password="pw")
     course = Course.objects.create(owner=teacher, title="P", description="")
     Enrolment.objects.create(course=course, student=student)

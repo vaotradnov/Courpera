@@ -3,22 +3,22 @@
 Exposes OpenAPI schema and interactive documentation. Versioned REST
 endpoints will be added in subsequent stages under /api/v1/.
 """
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+
+from django.urls import include, path
 from drf_spectacular.views import (
     SpectacularAPIView,
-    SpectacularSwaggerView,
     SpectacularRedocView,
+    SpectacularSwaggerView,
 )
-
+from rest_framework.routers import DefaultRouter
 
 from .views import (
-    UserViewSet,
     CourseViewSet,
     EnrolmentViewSet,
-    MaterialViewSet,
     FeedbackViewSet,
+    MaterialViewSet,
     StatusViewSet,
+    UserViewSet,
     search_users,
 )
 
@@ -30,8 +30,10 @@ router.register(r"api/v1/materials", MaterialViewSet, basename="materials")
 router.register(r"api/v1/feedback", FeedbackViewSet, basename="feedback")
 router.register(r"api/v1/status", StatusViewSet, basename="status")
 
+
 class UnthrottledSpectacularAPIView(SpectacularAPIView):
     throttle_classes: list = []
+
 
 urlpatterns = [
     path("api/schema/", UnthrottledSpectacularAPIView.as_view(), name="schema"),

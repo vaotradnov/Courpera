@@ -2,7 +2,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("assignments", "0004_alter_attempt_submitted_at"),
     ]
@@ -14,4 +13,3 @@ class Migration(migrations.Migration):
             field=models.DateTimeField(blank=True, null=True),
         ),
     ]
-

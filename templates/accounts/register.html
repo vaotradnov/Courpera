@@ -9,8 +9,10 @@
       <div class="kv">
         <label for="id_username">Username</label>
         {{ form.username }}
+        {{ form.username.errors }}
         <label for="id_email">Email</label>
         {{ form.email }}
+        {{ form.email.errors }}
         <label for="id_role">Role</label>
         {{ form.role }}
         <label for="id_secret_word">Secret word</label>
@@ -29,6 +31,7 @@
         </div>
         <label for="id_password2">Confirm password</label>
         {{ form.password2 }}
+        {{ form.password2.errors }}
       </div>
       <script defer src="/static/js/pw-checker.js"></script>
       <button type="submit">Register</button>

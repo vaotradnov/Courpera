@@ -1,5 +1,7 @@
 import os
 import platform
+
+from django.contrib.auth.models import AnonymousUser
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import render
 
@@ -13,7 +15,8 @@ def _admin_mode(request: HttpRequest) -> bool:
     page without requiring authentication in constrained demos.
     """
     try:
-        if getattr(request, "user", None) and request.user.is_staff:
+        user = getattr(request, "user", None)
+        if user and not isinstance(user, AnonymousUser) and getattr(user, "is_staff", False):
             return True
     except Exception:
         # Be permissive: if user resolution fails, fall back to env.
@@ -29,8 +32,10 @@ def _run_info() -> dict | None:
     """
     try:
         import django  # local import to avoid module-level side effects
+
         try:
             import rest_framework
+
             drf_version: str | None = getattr(rest_framework, "__version__", None)
         except Exception:
             drf_version = None
@@ -49,12 +54,12 @@ def index(request: HttpRequest) -> HttpResponse:
 
     In Admin Mode, show environment details, versions, and convenient
     links to the interactive API documentation. When not in Admin Mode,
-    keep the page minimal and student‑facing.
+    keep the page minimal and student-facing.
     """
     admin_mode = _admin_mode(request)
     ctx = {
         "app_name": "Courpera",
-        "tagline": "A streamlined, server‑rendered e‑learning application.",
+        "tagline": "A streamlined, server-rendered e-learning application.",
         "admin_mode": admin_mode,
         "runinfo": _run_info() if admin_mode else None,
         # Optional credentials for operator/grader convenience; read from env

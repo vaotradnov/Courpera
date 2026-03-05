@@ -2,4 +2,3 @@
 
 Manages courses and enrolments in later stages.
 """
-

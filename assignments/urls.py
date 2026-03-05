@@ -1,16 +1,16 @@
 from django.urls import path
 
 from .views import (
-    course_assignments,
+    assignment_attempts,
     assignment_create,
     assignment_delete,
-    quiz_manage,
     assignment_manage,
-    assignment_take,
     assignment_submit,
+    assignment_take,
     attempt_feedback,
-    assignment_attempts,
     attempt_grade,
+    course_assignments,
+    quiz_manage,
 )
 
 app_name = "assignments"

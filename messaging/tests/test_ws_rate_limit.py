@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+
 import pytest
-from channels.testing import WebsocketCommunicator
 from channels.db import database_sync_to_async
-from django.test import Client
+from channels.testing import WebsocketCommunicator
 from django.contrib.auth.models import User
-from courses.models import Course, Enrolment
+from django.test import Client
+
 from config.asgi import application
+from courses.models import Course
 
 
 @database_sync_to_async
@@ -30,7 +32,9 @@ async def test_ws_rate_limit_allows_up_to_five_messages():
     course_id, sessionid = await _setup_teacher_and_session()
     headers = [(b"cookie", f"sessionid={sessionid}".encode())]
 
-    communicator = WebsocketCommunicator(application, f"/ws/chat/course/{course_id}/", headers=headers)
+    communicator = WebsocketCommunicator(
+        application, f"/ws/chat/course/{course_id}/", headers=headers
+    )
     connected, _ = await communicator.connect()
     assert connected
 

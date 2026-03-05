@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext as _
 
@@ -32,4 +33,3 @@ class PasswordComplexityValidator:
 
     def get_help_text(self):  # noqa: D401
         return _("Password must include uppercase, lowercase, digit, and symbol.")
-

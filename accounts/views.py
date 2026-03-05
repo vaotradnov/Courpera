@@ -1,42 +1,43 @@
 """Accounts views: registration, profile edit, and role home pages."""
+
 from __future__ import annotations
 
+import hashlib
+import re
+
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
 from django.contrib.auth.views import LoginView, LogoutView, PasswordChangeView
+from django.contrib.staticfiles import finders
+from django.db.models import Q
 from django.http import (
+    FileResponse,
     HttpRequest,
     HttpResponse,
-    Http404,
     HttpResponseBadRequest,
-    FileResponse,
-    HttpResponseRedirect,
+    HttpResponseBase,
 )
 from django.shortcuts import redirect, render
-from django.db.models import Q
-from django.contrib.auth.models import User
-from django.urls import reverse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_GET
-from django.conf import settings
-import hashlib
-import re
-from urllib.parse import urlencode
-from django.contrib.staticfiles import finders
+
+from activity.forms import StatusForm
+from activity.models import Status
+from assignments.models import Assignment, Grade
+from assignments.utils import compute_course_percentage
+from courses.models import Course, Enrolment
 
 from .decorators import role_required
 from .forms import (
-    RegistrationForm,
-    ProfileForm,
     EmailOrUsernameAuthenticationForm,
+    ProfileForm,
+    RegistrationForm,
     SecretResetForm,
 )
 from .models import Role
-from activity.forms import StatusForm
-from activity.models import Status
-from courses.models import Enrolment, Course
-from assignments.utils import compute_course_percentage
-from assignments.models import Grade, Assignment
 
 
 class CourperaLoginView(LoginView):
@@ -50,7 +51,9 @@ class CourperaLoginView(LoginView):
             now = __import__("time").time()
             ts = [t for t in ts if now - t < 60]
             if len(ts) >= 10:
-                messages.error(request, "Too many login attempts. Please wait a minute and try again.")
+                messages.error(
+                    request, "Too many login attempts. Please wait a minute and try again."
+                )
                 return self.get(request, *args, **kwargs)
             ts.append(now)
             request.session["login_ts"] = ts
@@ -58,11 +61,25 @@ class CourperaLoginView(LoginView):
             pass
         return super().post(request, *args, **kwargs)
 
+    def get_success_url(self):  # extra guard against open redirects
+        redirect_to = self.request.POST.get(self.redirect_field_name) or self.request.GET.get(
+            self.redirect_field_name
+        )
+        if redirect_to and url_has_allowed_host_and_scheme(
+            url=redirect_to,
+            allowed_hosts={self.request.get_host()},
+            require_https=self.request.is_secure(),
+        ):
+            return redirect_to
+        # Fall back to configured redirect URL
+        return "/accounts/home/"
+
 
 class CourperaLogoutView(LogoutView):
     next_page = "/"
     # Allow GET to support direct navigation to the logout URL without 405.
     http_method_names = ["get", "post", "head", "options"]
+
     # Convenience: accept GET as well to avoid 405 when users follow a link.
     # In stricter deployments, prefer POST-only logout.
     def get(self, request, *args, **kwargs):  # pragma: no cover
@@ -101,8 +118,9 @@ def home(request: HttpRequest) -> HttpResponse:
 def home_teacher(request: HttpRequest) -> HttpResponse:
     # 16.04: Teaching dashboard with quick links and enrolment counts
     from django.db.models import Count as _Count
+
     owned = (
-        Course.objects.filter(owner=request.user)
+        Course.objects.filter(owner_id=request.user.id)
         .annotate(enrol_count=_Count("enrolments"))
         .order_by("title")
     )
@@ -112,30 +130,42 @@ def home_teacher(request: HttpRequest) -> HttpResponse:
 @login_required
 @role_required(Role.STUDENT)
 def home_student(request: HttpRequest) -> HttpResponse:
-    updates = Status.objects.filter(user=request.user)[:20]
+    from typing import cast
+
+    uid = cast(int, request.user.id)
+    updates = Status.objects.filter(user_id=uid)[:20]
     form = StatusForm()
     # 16.04: My Learning dashboard items (upcoming deadlines and resume links)
     from django.utils import timezone as _tz
-    enrol_courses = [e.course for e in Enrolment.objects.filter(student=request.user).select_related("course")]
+
+    enrol_courses = [
+        e.course for e in Enrolment.objects.filter(student_id=uid).select_related("course")
+    ]
     upcoming: list[dict] = []
     if enrol_courses:
         ids = [c.id for c in enrol_courses]
         qs = (
-            Assignment.objects.filter(course_id__in=ids, is_published=True, deadline__isnull=False, deadline__gt=_tz.now())
+            Assignment.objects.filter(
+                course_id__in=ids, is_published=True, deadline__isnull=False, deadline__gt=_tz.now()
+            )
             .select_related("course")
             .order_by("deadline")[:10]
         )
         for a in qs:
             upcoming.append({"course": a.course, "assignment": a, "deadline": a.deadline})
-    return render(request, "accounts/home_student.html", {"updates": updates, "status_form": form, "upcoming": upcoming})
+    return render(
+        request,
+        "accounts/home_student.html",
+        {"updates": updates, "status_form": form, "upcoming": upcoming},
+    )
 
 
 @login_required
 @role_required(Role.TEACHER)
 def search_users(request: HttpRequest) -> HttpResponse:
-    """Teacher-only user search by username, e-mail, or IDs (partial, case-insensitive)."""
+    """Teacher-only user search by username, email, or IDs (partial, case-insensitive)."""
     q = (request.GET.get("q") or "").strip()
-    results = []
+    results: list[User] = []
     if q:
         base_q = (
             Q(username__icontains=q)
@@ -151,16 +181,16 @@ def search_users(request: HttpRequest) -> HttpResponse:
                 base_q = base_q | Q(id=uid)
             except Exception:
                 pass
-        results = (
-            User.objects.select_related("profile")
-            .filter(base_q)
-            .order_by("username")[:50]
+        results = list(
+            User.objects.select_related("profile").filter(base_q).order_by("username")[:50]
         )
     return render(request, "accounts/search.html", {"q": q, "results": results})
 
 
 @login_required
 def profile_edit(request: HttpRequest) -> HttpResponse:
+    if not request.user.is_authenticated:
+        return redirect("accounts:login")
     profile = request.user.profile
     if request.method == "POST":
         # Remove uploaded avatar when requested
@@ -189,7 +219,7 @@ def profile_edit(request: HttpRequest) -> HttpResponse:
 def student_grades(request: HttpRequest) -> HttpResponse:
     """Student grades overview across enrolled courses."""
     enrolments = (
-        Enrolment.objects.filter(student=request.user)
+        Enrolment.objects.filter(student_id=request.user.id)
         .select_related("course", "course__owner")
         .order_by("course__title")
     )
@@ -199,7 +229,7 @@ def student_grades(request: HttpRequest) -> HttpResponse:
         grades = (
             Grade.objects.filter(
                 course=e.course,
-                student=request.user,
+                student_id=request.user.id,
                 assignment__is_published=True,
                 released_at__isnull=False,
             )
@@ -233,14 +263,23 @@ def password_forgot(request: HttpRequest) -> HttpResponse:
         if form.is_valid():
             ident = (form.cleaned_data["identifier"] or "").strip()
             from django.contrib.auth import get_user_model
+
             UserModel = get_user_model()
-            user = UserModel.objects.filter(username__iexact=ident).first() or UserModel.objects.filter(email__iexact=ident).first()
+            user = (
+                UserModel.objects.filter(username__iexact=ident).first()
+                or UserModel.objects.filter(email__iexact=ident).first()
+            )
             if not user:
                 messages.error(request, "Account not found.")
             else:
                 prof = getattr(user, "profile", None)
                 from django.contrib.auth.hashers import check_password
-                ok = bool(prof and prof.secret_word_hash and check_password(form.cleaned_data["secret_word"], prof.secret_word_hash))
+
+                ok = bool(
+                    prof
+                    and prof.secret_word_hash
+                    and check_password(form.cleaned_data["secret_word"], prof.secret_word_hash)
+                )
                 if not ok:
                     messages.error(request, "Secret word does not match.")
                 else:
@@ -258,7 +297,7 @@ def password_forgot(request: HttpRequest) -> HttpResponse:
 
 
 @require_GET
-def avatar_proxy(request: HttpRequest, user_id: int, size: int) -> HttpResponse:
+def avatar_proxy(request: HttpRequest, user_id: int, size: int) -> HttpResponseBase:
     """Proxy DiceBear avatar as same-origin PNG to avoid ORB issues.
 
     Accepts deterministic query params but recomputes seed server-side.
@@ -270,15 +309,15 @@ def avatar_proxy(request: HttpRequest, user_id: int, size: int) -> HttpResponse:
     if size < 16 or size > 256:
         return HttpResponseBadRequest("invalid size")
 
-    try:
-        user = User.objects.get(pk=user_id)
-    except User.DoesNotExist as exc:  # pragma: no cover - edge
-        raise Http404("user not found") from exc
-
-    # Compute deterministic seed; vary by profile role to produce distinct defaults
+    # Try to load the user, but fall back to a student role if missing.
+    user = User.objects.filter(pk=user_id).first()
     role = getattr(getattr(user, "profile", None), "role", "student")
-    seed_src = f"{getattr(user, 'pk', '0')}:{getattr(settings, 'AVATAR_SEED_SALT', 'courpera')}:{role}"
-    seed = hashlib.sha256(seed_src.encode()).hexdigest()
+
+    # Compute deterministic seed (not currently used for local assets); kept for future use.
+    seed_src = (
+        f"{getattr(user, 'pk', '0')}:{getattr(settings, 'AVATAR_SEED_SALT', 'courpera')}:{role}"
+    )
+    hashlib.sha256(seed_src.encode()).hexdigest()
 
     # Serve role-specific default avatar from local static to avoid network dependency
     img_name = "avatar-default.svg" if role == "student" else "avatar-teacher.svg"

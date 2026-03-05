@@ -3,11 +3,12 @@
 Defines admin and the base UI index route. API and documentation routes
 will be added in subsequent stages.
 """
-from django.contrib import admin
-from django.urls import include, path
-from django.http import HttpResponse
+
 from django.conf import settings
 from django.conf.urls.static import static
+from django.contrib import admin
+from django.http import HttpResponse
+from django.urls import include, path
 
 
 def _favicon(request):  # inline SVG favicon to avoid 404s in tests/dev

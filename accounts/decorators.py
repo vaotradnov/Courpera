@@ -1,7 +1,9 @@
 """Role-based access decorators."""
+
 from __future__ import annotations
 
 from functools import wraps
+
 from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest
 
@@ -28,4 +30,3 @@ def role_required(*roles: str):
         return _wrapped
 
     return decorator
-

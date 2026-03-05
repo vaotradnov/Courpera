@@ -5,6 +5,7 @@ from django.dispatch import receiver
 
 from courses.models import Enrolment
 from materials.models import Material
+
 from .models import Notification
 
 
@@ -48,4 +49,3 @@ def notify_material(sender, instance: Material, created: bool, **kwargs):
             )
         )
     Notification.objects.bulk_create(to_create)
-

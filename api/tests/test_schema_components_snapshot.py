@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+
 import pytest
 from django.test import Client
 
@@ -31,4 +32,3 @@ def test_openapi_components_include_material_and_enrolment_shapes():
         if _has_properties(schema, {"id", "course", "student", "completed", "created_at"}):
             enrolment_ok = True
     assert material_ok and enrolment_ok
-

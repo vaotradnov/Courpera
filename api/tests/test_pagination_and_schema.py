@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+
 import pytest
 from django.contrib.auth.models import User
 from django.test import Client
+
 from courses.models import Course
 
 
@@ -11,7 +13,8 @@ from courses.models import Course
 def test_courses_pagination_caps_and_param():
     # Teacher to own the created courses
     t = User.objects.create_user(username="tpag", password="pw")
-    t.profile.role = "teacher"; t.profile.save(update_fields=["role"])
+    t.profile.role = "teacher"
+    t.profile.save(update_fields=["role"])
     for i in range(0, 60):
         Course.objects.create(owner=t, title=f"C{i}", description="")
 
@@ -43,4 +46,3 @@ def test_openapi_includes_materials_path():
     except Exception:
         txt = body.decode("utf-8", errors="ignore")
         assert "openapi" in txt and "/api/v1/materials" in txt
-

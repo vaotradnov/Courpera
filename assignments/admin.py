@@ -1,6 +1,14 @@
 from django.contrib import admin
 
-from .models import Assignment, QuizQuestion, QuizAnswerChoice, Attempt, StudentAnswer, StudentTextAnswer, StudentFileSubmission
+from .models import (
+    Assignment,
+    Attempt,
+    QuizAnswerChoice,
+    QuizQuestion,
+    StudentAnswer,
+    StudentFileSubmission,
+    StudentTextAnswer,
+)
 
 
 @admin.register(Assignment)

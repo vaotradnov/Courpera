@@ -1,4 +1,5 @@
 """Forms for status updates."""
+
 from __future__ import annotations
 
 from django import forms
@@ -11,6 +12,7 @@ class StatusForm(forms.ModelForm):
         model = Status
         fields = ("text",)
         widgets = {
-            "text": forms.Textarea(attrs={"rows": 2, "maxlength": 280, "placeholder": "Share an update..."}),
+            "text": forms.Textarea(
+                attrs={"rows": 2, "maxlength": 280, "placeholder": "Share an update..."}
+            ),
         }
-

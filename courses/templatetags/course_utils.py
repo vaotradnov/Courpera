@@ -19,4 +19,3 @@ def filesize(num: int) -> str:
     if i == 0:
         return f"{int(n)} {units[i]}"
     return f"{n:.1f} {units[i]}"
-

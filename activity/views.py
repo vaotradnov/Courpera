@@ -7,8 +7,9 @@ from django.shortcuts import redirect, render
 
 from accounts.decorators import role_required
 from accounts.models import Role
+
 from .forms import StatusForm
-from .models import Status, Notification
+from .models import Notification
 
 
 @login_required
@@ -34,7 +35,10 @@ def notifications_recent(request: HttpRequest) -> JsonResponse:
         limit = int(getattr(request, "GET", {}).get("limit", 10))
     except Exception:
         limit = 10
-    qs = Notification.objects.filter(user=request.user).order_by("-created_at")
+    from typing import cast
+
+    uid = cast(int, request.user.id)
+    qs = Notification.objects.filter(user_id=uid).order_by("-created_at")
     unread = qs.filter(read=False).count()
     items = list(qs[:limit])
     data = [
@@ -52,13 +56,19 @@ def notifications_recent(request: HttpRequest) -> JsonResponse:
 
 @login_required
 def notifications_page(request: HttpRequest) -> HttpResponse:
-    qs = Notification.objects.filter(user=request.user).order_by("-created_at")[:100]
+    from typing import cast
+
+    uid = cast(int, request.user.id)
+    qs = Notification.objects.filter(user_id=uid).order_by("-created_at")[:100]
     return render(request, "activity/notifications.html", {"notifications": qs})
 
 
 @login_required
 def notifications_mark_all_read(request: HttpRequest) -> HttpResponse:
     if request.method == "POST":
-        Notification.objects.filter(user=request.user, read=False).update(read=True)
+        from typing import cast
+
+        uid = cast(int, request.user.id)
+        Notification.objects.filter(user_id=uid, read=False).update(read=True)
         messages.success(request, "Notifications marked as read.")
     return redirect("activity:notifications-page")

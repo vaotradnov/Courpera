@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from django.db import models
+from typing import TYPE_CHECKING, Any, Optional
+
 from django.conf import settings
+from django.db import models
 from django.utils import timezone
 
 from courses.models import Course
@@ -24,6 +26,7 @@ class Assignment(models.Model):
     # Stage 16.01: maximum marks for this assignment (used for grading)
     max_marks = models.FloatField(default=100.0)
     attempts_allowed = models.PositiveSmallIntegerField(default=1)
+
     class AttemptsPolicy(models.TextChoices):
         BEST = "best", "Best"
         LATEST = "latest", "Latest"
@@ -40,6 +43,16 @@ class Assignment(models.Model):
 
     class Meta:
         ordering = ["title"]
+        indexes = [
+            models.Index(fields=["course", "is_published", "deadline"]),
+        ]
+
+    if TYPE_CHECKING:
+        # Set dynamically in views for convenience; declared here for type checking
+        ready_info: Optional[dict[str, Any]]
+        avail_ok: bool
+        attempts_used: int
+        attempts_left: int
 
     def __str__(self) -> str:
         return f"{self.title} ({self.get_type_display()})"
@@ -71,6 +84,11 @@ class QuizQuestion(models.Model):
     def __str__(self) -> str:
         return f"Q{self.order}: {self.text[:40]}"
 
+    if TYPE_CHECKING:
+        # Annotated for mypy; populated in views
+        choice_count: int
+        correct_count: int
+
 
 class QuizAnswerChoice(models.Model):
     question = models.ForeignKey(QuizQuestion, on_delete=models.CASCADE, related_name="choices")
@@ -84,18 +102,27 @@ class QuizAnswerChoice(models.Model):
         ordering = ["order", "id"]
 
     def __str__(self) -> str:
-        return f"Choice {self.order} ({'✓' if self.is_correct else ' '})"
+        # Use a simple, readable marker for correct choices.
+        return f"Choice {self.order} (✓)" if self.is_correct else f"Choice {self.order}"
 
 
 class Attempt(models.Model):
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE, related_name="attempts")
-    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="assignment_attempts")
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="assignment_attempts"
+    )
     attempt_no = models.PositiveSmallIntegerField(default=1)
     submitted_at = models.DateTimeField(default=timezone.now)
     score = models.FloatField(null=True, blank=True)
     # Stage 16.01: marking fields
     marks_awarded = models.FloatField(null=True, blank=True)
-    graded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="graded_attempts")
+    graded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="graded_attempts",
+    )
     graded_at = models.DateTimeField(null=True, blank=True)
     feedback_text = models.TextField(blank=True)
     override_reason = models.TextField(blank=True)
@@ -104,6 +131,10 @@ class Attempt(models.Model):
 
     class Meta:
         ordering = ["-submitted_at"]
+        indexes = [
+            models.Index(fields=["assignment", "student"]),
+            models.Index(fields=["released", "assignment"]),
+        ]
 
     def __str__(self) -> str:
         return f"Attempt {self.attempt_no} by {self.student_id} on {self.assignment_id}"
@@ -138,8 +169,12 @@ class Grade(models.Model):
 
     assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE, related_name="grades")
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="grades")
-    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="grades")
-    attempt = models.ForeignKey(Attempt, on_delete=models.SET_NULL, null=True, blank=True, related_name="grade_records")
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="grades"
+    )
+    attempt = models.ForeignKey(
+        Attempt, on_delete=models.SET_NULL, null=True, blank=True, related_name="grade_records"
+    )
     achieved_marks = models.FloatField(default=0.0)
     max_marks = models.FloatField(default=100.0)
     released_at = models.DateTimeField(null=True, blank=True)
@@ -155,4 +190,6 @@ class Grade(models.Model):
         ]
 
     def __str__(self) -> str:  # pragma: no cover
-        return f"Grade {self.student_id}/{self.assignment_id}: {self.achieved_marks}/{self.max_marks}"
+        return (
+            f"Grade {self.student_id}/{self.assignment_id}: {self.achieved_marks}/{self.max_marks}"
+        )

@@ -4,25 +4,26 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('assignments', '0007_grades_and_marking'),
+        ("assignments", "0007_grades_and_marking"),
     ]
 
     operations = [
         migrations.RenameIndex(
-            model_name='grade',
-            new_name='assignments_assignm_81964c_idx',
-            old_name='assign_grd_asg_stu_idx',
+            model_name="grade",
+            new_name="assignments_assignm_81964c_idx",
+            old_name="assign_grd_asg_stu_idx",
         ),
         migrations.RenameIndex(
-            model_name='grade',
-            new_name='assignments_course__e3240a_idx',
-            old_name='assign_grd_crs_stu_idx',
+            model_name="grade",
+            new_name="assignments_course__e3240a_idx",
+            old_name="assign_grd_crs_stu_idx",
         ),
         migrations.AlterField(
-            model_name='grade',
-            name='id',
-            field=models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
+            model_name="grade",
+            name="id",
+            field=models.BigAutoField(
+                auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+            ),
         ),
     ]

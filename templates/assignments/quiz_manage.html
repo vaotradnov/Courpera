@@ -29,10 +29,10 @@
     <h4 class="section-heading">Meta</h4>
     <form method="post" action="" class="mb-2">
       {% csrf_token %}
-      <div class="kv"> 
-        <label for="id_title">Title</label> 
-        {{ meta_form.title }} 
-        {{ meta_form.title.errors }} 
+      <div class="kv">
+        <label for="id_title">Title</label>
+        {{ meta_form.title }}
+        {{ meta_form.title.errors }}
         <label for="id_instructions">Instructions</label>
         {{ meta_form.instructions }}
         {{ meta_form.instructions.errors }}
@@ -75,9 +75,9 @@
         </div>
         {{ meta_form.attempts_policy.errors }}
         <p class="muted help kv-span">Best: highest mark; Latest: most recent attempt.</p>
-      </div> 
-      <button type="submit" name="action" value="update_meta" class="btn-secondary">Save details</button> 
-    </form> 
+      </div>
+      <button type="submit" name="action" value="update_meta" class="btn-secondary">Save details</button>
+    </form>
     <div>
       {% if ready_info.ready %}
         <p class="muted" aria-live="polite">Status: <span class="chip badge-ok">Ready</span> for students.</p>

@@ -2,6 +2,7 @@
 
 Extends base settings with developer-friendly defaults.
 """
+
 from .base import *  # noqa
 import os
 
@@ -13,4 +14,3 @@ ALLOWED_HOSTS = ["127.0.0.1", "localhost"]
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-insecure-key-change-me")
 
 # Keep static handling simple in development (WhiteNoise added in prod)
-

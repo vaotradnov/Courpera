@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import random
 import string
+
 import pytest
-from django.core.exceptions import ValidationError
 from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 
 
 def _make(min_len=12, have_upper=True, have_lower=True, have_digit=True, have_symbol=True):

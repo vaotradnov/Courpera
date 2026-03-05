@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from django.contrib.auth.decorators import login_required
-from django.http import JsonResponse, HttpRequest
+from django.http import HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404
 
 from courses.models import Course, Enrolment
+
 from .models import ChatMessage
 
 
@@ -26,9 +27,7 @@ def course_history(request: HttpRequest, course_id: int) -> JsonResponse:
         return JsonResponse({"detail": "Not permitted"}, status=403)
     room = f"course_{course_id}"
     items = (
-        ChatMessage.objects.filter(room=room)
-        .select_related("sender")
-        .order_by("-created_at")[:50]
+        ChatMessage.objects.filter(room=room).select_related("sender").order_by("-created_at")[:50]
     )
     # Return oldest first for readability
     data = [
@@ -40,4 +39,3 @@ def course_history(request: HttpRequest, course_id: int) -> JsonResponse:
         for m in reversed(list(items))
     ]
     return JsonResponse({"results": data})
-

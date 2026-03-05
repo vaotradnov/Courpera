@@ -2,7 +2,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("accounts", "0001_initial"),
     ]
@@ -14,4 +13,3 @@ class Migration(migrations.Migration):
             field=models.ImageField(blank=True, null=True, upload_to="avatars/"),
         ),
     ]
-

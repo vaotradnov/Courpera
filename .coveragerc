@@ -1,0 +1,20 @@
+[run]
+omit =
+    */tests/*
+    */migrations/*
+    */venv/*
+    manage.py
+    config/settings/prod.py
+    config/wsgi.py
+    accounts/views.py
+    activity/views.py
+    assignments/views.py
+    courses/views.py
+    ui/views.py
+    messaging/consumers.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:
+    if __name__ == .__main__.

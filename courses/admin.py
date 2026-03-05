@@ -14,4 +14,3 @@ class EnrolmentAdmin(admin.ModelAdmin):
     list_display = ("course", "student", "completed", "created_at")
     list_filter = ("completed",)
     search_fields = ("course__title", "student__username")
-

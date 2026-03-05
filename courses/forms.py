@@ -1,11 +1,13 @@
-﻿"""Forms for creating courses."""
+"""Forms for creating courses."""
+
 from __future__ import annotations
 
+from typing import Any, cast
+
 from django import forms
 
-from .models import Course
-from django import forms
 from .context_processors import DEFAULT_SUBJECTS
+from .models import Course
 
 
 class CourseForm(forms.ModelForm):
@@ -40,7 +42,9 @@ class CourseForm(forms.ModelForm):
                 opts.append((s, s))
                 seen.add(s)
         opts.append(("__other__", "Other (add new)…"))
-        self.fields["subject_choice"].choices = [("", "Select subject")] + opts
+        cast(forms.ChoiceField, self.fields["subject_choice"]).choices = [
+            ("", "Select subject")
+        ] + opts
 
         # Initialise selection
         current = (self.instance.subject or "").strip() if getattr(self, "instance", None) else ""
@@ -51,10 +55,20 @@ class CourseForm(forms.ModelForm):
             self.fields["new_subject"].initial = current
 
         # Place fields in a helpful order for templates using as_p/as_table
-        self.order_fields(["title", "description", "subject_choice", "new_subject", "level", "language", "thumbnail"])
+        self.order_fields(
+            [
+                "title",
+                "description",
+                "subject_choice",
+                "new_subject",
+                "level",
+                "language",
+                "thumbnail",
+            ]
+        )
 
     def clean(self):
-        cleaned = super().clean()
+        cleaned = cast(dict[str, Any], super().clean())
         # Resolve subject from either dropdown or new text
         choice = (cleaned.get("subject_choice") or "").strip()
         newval = (cleaned.get("new_subject") or "").strip()
@@ -82,9 +96,9 @@ class SyllabusForm(forms.ModelForm):
 
 
 class AddStudentForm(forms.Form):
-    """Teacher utility form to enrol a student by username, e-mail, or Student ID.
+    """Teacher utility form to enrol a student by username, email, or Student ID.
 
     This keeps the UI simple.
     """
 
-    query = forms.CharField(label="Username, e-mail, or Student ID", max_length=150)
+    query = forms.CharField(label="Username, email, or Student ID", max_length=150)

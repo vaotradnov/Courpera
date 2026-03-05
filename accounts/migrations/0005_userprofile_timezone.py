@@ -4,15 +4,14 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('accounts', '0004_userprofile_secret_word_hash'),
+        ("accounts", "0004_userprofile_secret_word_hash"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='userprofile',
-            name='timezone',
-            field=models.CharField(blank=True, default='Europe/London', max_length=64),
+            model_name="userprofile",
+            name="timezone",
+            field=models.CharField(blank=True, default="Europe/London", max_length=64),
         ),
     ]

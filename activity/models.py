@@ -1,4 +1,5 @@
 """Activity models: simple status updates (Stage 7)."""
+
 from __future__ import annotations
 
 from django.conf import settings
@@ -6,7 +7,9 @@ from django.db import models
 
 
 class Status(models.Model):
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="statuses")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="statuses"
+    )
     text = models.CharField(max_length=280)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -29,10 +32,24 @@ class Notification(models.Model):
         (TYPE_QNA, "Q&A"),
     )
 
-    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications")
-    actor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="notifications_actor")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notifications"
+    )
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="notifications_actor",
+    )
     type = models.CharField(max_length=20, choices=TYPE_CHOICES)
-    course = models.ForeignKey('courses.Course', on_delete=models.CASCADE, null=True, blank=True, related_name="notifications")
+    course = models.ForeignKey(
+        "courses.Course",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="notifications",
+    )
     message = models.CharField(max_length=200)
     created_at = models.DateTimeField(auto_now_add=True)
     read = models.BooleanField(default=False, db_index=True)

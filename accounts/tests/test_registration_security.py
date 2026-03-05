@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import pytest
-from django.core.exceptions import ValidationError
 from django.contrib.auth import get_user_model
-from accounts.validators import PasswordComplexityValidator
-from accounts.forms import RegistrationForm
+from django.core.exceptions import ValidationError
 
+from accounts.forms import RegistrationForm
+from accounts.validators import PasswordComplexityValidator
 
 User = get_user_model()
 
@@ -37,4 +37,3 @@ def test_registration_duplicate_checks():
     form = RegistrationForm(data)
     assert not form.is_valid()
     assert "email" in form.errors or "username" in form.errors
-

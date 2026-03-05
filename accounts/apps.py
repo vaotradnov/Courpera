@@ -10,4 +10,5 @@ class AccountsConfig(AppConfig):
     def ready(self) -> None:  # pragma: no cover (import-time hook)
         # Import signal handlers to auto-create user profiles on user creation.
         from . import signals  # noqa: F401
+
         return super().ready()

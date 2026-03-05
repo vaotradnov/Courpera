@@ -4,19 +4,26 @@ Defines a minimal `Course` owned by a teacher and an `Enrolment` linking
 students to courses. Teacher removal is implemented by deleting the
 enrolment record (simple and SQLite-friendly).
 """
+
 from __future__ import annotations
+
+from typing import Union
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AbstractUser, AnonymousUser
 from django.db import models
 
-User = get_user_model()
+UserModel = get_user_model()
+UserLike = Union[AbstractUser, AnonymousUser]
 
 
 class Course(models.Model):
     """A course authored by a teacher user."""
 
-    owner = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="owned_courses")
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="owned_courses"
+    )
     title = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     # Teacher-editable syllabus and outcomes (one item per line)
@@ -40,12 +47,19 @@ class Course(models.Model):
 
     class Meta:
         ordering = ["title"]
+        indexes = [
+            models.Index(fields=["subject", "level", "language"]),
+        ]
 
     def __str__(self) -> str:  # pragma: no cover
         return f"{self.title}"
 
-    def is_owner(self, user: User) -> bool:
-        return bool(user and user.is_authenticated and self.owner_id == user.id)
+    def is_owner(self, user: UserLike) -> bool:
+        if isinstance(user, AnonymousUser):
+            return False
+        return bool(
+            getattr(user, "is_authenticated", False) and self.owner_id == getattr(user, "id", None)
+        )
 
 
 class Enrolment(models.Model):
@@ -56,7 +70,9 @@ class Enrolment(models.Model):
     """
 
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="enrolments")
-    student = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="enrolments")
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="enrolments"
+    )
     completed = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 

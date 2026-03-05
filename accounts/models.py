@@ -4,10 +4,10 @@ Defines a `UserProfile` associated one-to-one with Django's `User`,
 capturing the role (student/teacher) and optional contact fields. The
 profile is created automatically on user creation.
 """
+
 from __future__ import annotations
 
 from django.conf import settings
-from django.contrib.auth.models import User
 from django.db import models
 
 
@@ -29,7 +29,9 @@ class UserProfile(models.Model):
     - Contact fields are optional and can be extended later
     """
 
-    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile")
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="profile"
+    )
     role = models.CharField(max_length=16, choices=Role.choices, default=Role.STUDENT)
 
     full_name = models.CharField(max_length=200, blank=True)

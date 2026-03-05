@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from django.test import Client
 from django.contrib.auth.models import User
+from django.test import Client
 
 from courses.models import Course, Enrolment
 
@@ -14,9 +14,14 @@ def _pos(haystack: str, needle: str) -> int:
 
 def test_sort_by_most_enrolled_orders_desc(db):
     t = User.objects.create_user(username="teach_sort", password="pw")
-    t.profile.role = "teacher"; t.profile.save(update_fields=["role"])
-    s1 = User.objects.create_user(username="s1_sort", password="pw"); s1.profile.role = "student"; s1.profile.save(update_fields=["role"])
-    s2 = User.objects.create_user(username="s2_sort", password="pw"); s2.profile.role = "student"; s2.profile.save(update_fields=["role"])
+    t.profile.role = "teacher"
+    t.profile.save(update_fields=["role"])
+    s1 = User.objects.create_user(username="s1_sort", password="pw")
+    s1.profile.role = "student"
+    s1.profile.save(update_fields=["role"])
+    s2 = User.objects.create_user(username="s2_sort", password="pw")
+    s2.profile.role = "student"
+    s2.profile.save(update_fields=["role"])
 
     cA = Course.objects.create(owner=t, title="AAA", description="")
     cB = Course.objects.create(owner=t, title="BBB", description="")
@@ -38,9 +43,19 @@ def test_sort_by_most_enrolled_orders_desc(db):
 
 def test_filters_subject_level_language(db):
     t = User.objects.create_user(username="teach_f", password="pw")
-    t.profile.role = "teacher"; t.profile.save(update_fields=["role"])
-    Course.objects.create(owner=t, title="AI 101", description="", subject="AI", level="advanced", language="Spanish")
-    Course.objects.create(owner=t, title="Math 101", description="", subject="Math", level="beginner", language="English")
+    t.profile.role = "teacher"
+    t.profile.save(update_fields=["role"])
+    Course.objects.create(
+        owner=t, title="AI 101", description="", subject="AI", level="advanced", language="Spanish"
+    )
+    Course.objects.create(
+        owner=t,
+        title="Math 101",
+        description="",
+        subject="Math",
+        level="beginner",
+        language="English",
+    )
 
     client = Client()
     # Filter subject AI
@@ -56,4 +71,3 @@ def test_filters_subject_level_language(db):
     r3 = client.get("/courses/?language=Spanish")
     body3 = r3.content.decode("utf-8", errors="ignore")
     assert "AI 101" in body3 and "Math 101" not in body3
-

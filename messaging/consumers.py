@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import json
-from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
+from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from django.contrib.auth.models import AnonymousUser
 
 from courses.models import Course, Enrolment
+
 from .models import ChatMessage
 
 
@@ -51,6 +51,7 @@ class CourseChatConsumer(AsyncJsonWebsocketConsumer):
         # Enforce basic per-connection rate limiting to reduce spam
         try:
             import time
+
             now = time.time()
             self._rate_ts = [t for t in self._rate_ts if now - t < 5.0]
             if len(self._rate_ts) >= 5:
@@ -65,10 +66,12 @@ class CourseChatConsumer(AsyncJsonWebsocketConsumer):
             "sender": getattr(self.scope.get("user"), "username", ""),
             "message": msg,
         }
-        await self.channel_layer.group_send(self.room_name, {"type": "chat_message", "payload": payload})
+        await self.channel_layer.group_send(
+            self.room_name, {"type": "chat_message", "payload": payload}
+        )
 
     async def chat_message(self, event):
-        await self.send_json(event["payload"]) 
+        await self.send_json(event["payload"])
 
     async def disconnect(self, code):
         try:

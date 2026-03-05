@@ -2,9 +2,10 @@ from django.db import migrations
 
 
 def set_defaults_for_published(apps, schema_editor):
-    Assignment = apps.get_model('assignments', 'Assignment')
-    from django.utils import timezone
+    Assignment = apps.get_model("assignments", "Assignment")
     from datetime import timedelta
+
+    from django.utils import timezone
 
     now = timezone.now()
     for a in Assignment.objects.filter(is_published=True, available_from__isnull=True):
@@ -15,7 +16,6 @@ def set_defaults_for_published(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("assignments", "0005_assignment_available_from"),
     ]
@@ -23,4 +23,3 @@ class Migration(migrations.Migration):
     operations = [
         migrations.RunPython(set_defaults_for_published, migrations.RunPython.noop),
     ]
-

@@ -4,7 +4,6 @@ from typing import List
 
 from .models import Course
 
-
 DEFAULT_SUBJECTS: List[str] = [
     "Data Science",
     "Computer Science",
@@ -35,4 +34,3 @@ def course_subjects(request) -> dict:
             merged.append(s)
             seen.add(s)
     return {"course_subjects": merged}
-

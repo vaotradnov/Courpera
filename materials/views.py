@@ -1,4 +1,5 @@
 """Upload and management views for course materials."""
+
 from __future__ import annotations
 
 from django.contrib import messages
@@ -10,6 +11,7 @@ from django.shortcuts import get_object_or_404, redirect
 from accounts.decorators import role_required
 from accounts.models import Role
 from courses.models import Course
+
 from .forms import MaterialUploadForm
 from .models import Material
 
@@ -45,7 +47,10 @@ def upload_for_course(request: HttpRequest, course_id: int) -> HttpResponse:
             except Exception:
                 pass
         else:
-            messages.error(request, "; ".join([str(e) for e in form.errors.get("file", [])]) or "Upload failed.")
+            messages.error(
+                request,
+                "; ".join([str(e) for e in form.errors.get("file", [])]) or "Upload failed.",
+            )
     return redirect("courses:detail", pk=course.pk)
 
 

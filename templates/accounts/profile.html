@@ -15,10 +15,12 @@
         {{ form.full_name }}
         <label for="id_phone">Phone</label>
         {{ form.phone }}
-        <label for="id_email">E‑mail</label>
+        <label for="id_email">Email</label>
         {{ form.email }}
+        {{ form.email.errors }}
         <label for="id_current_password">Current password</label>
         {{ form.current_password }}
+        {{ form.current_password.errors }}
         <label for="id_timezone">Timezone</label>
         {{ form.timezone }}
         <label class="nowrap" for="id_avatar">Avatar (JPEG/PNG/WEBP, &le; 2&nbsp;MB)</label>

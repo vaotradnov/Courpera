@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from django.contrib.auth.models import User
+
 from accounts.templatetags.avatar import avatar_url
 
 
@@ -15,4 +16,3 @@ def test_avatar_url_deterministic_and_size_param():
     assert url1 != url3
     assert "size=32" in url1 and "size=64" in url3
     assert "seed=" in url1
-

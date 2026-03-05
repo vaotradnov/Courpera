@@ -34,4 +34,3 @@
     initFor(document.getElementById('id_new_password1'));
   });
 })();
-

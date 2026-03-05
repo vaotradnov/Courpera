@@ -5,8 +5,51 @@ on:
   pull_request:
 
 jobs:
-  test:
+  deps-audit:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pip-audit
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-audit
+      - name: Audit dependencies (strict)
+        working-directory: "Second Half/Project/Courpera"
+        run: |
+          pip-audit -r requirements.txt --strict
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff mypy django-stubs djangorestframework-stubs
+      - name: Ruff check
+        working-directory: "Second Half/Project/Courpera"
+        run: |
+          ruff check --output-format=full .
+          ruff format --check .
+      - name: Pre-commit (all files)
+        working-directory: "Second Half/Project/Courpera"
+        run: |
+          python -m pip install pre-commit
+          pre-commit run --all-files --show-diff-on-failure
+      - name: Mypy type check (loose)
+        working-directory: "Second Half/Project/Courpera"
+        run: |
+          mypy --config-file mypy.ini .
+  test-fast:
+    runs-on: ubuntu-latest
+    needs: [lint, deps-audit]
     strategy:
       matrix:
         python-version: ['3.12', '3.13']
@@ -27,24 +70,75 @@ jobs:
           DJANGO_SETTINGS_MODULE: config.settings.dev
         run: |
           python manage.py migrate --noinput
-      - name: Run tests with coverage (maxfail=1)
+      - name: Check for model changes (migrations up to date)
         working-directory: "Second Half/Project/Courpera"
         env:
           DJANGO_SETTINGS_MODULE: config.settings.dev
         run: |
-          pytest -vv -ra --durations=10 --maxfail=1 --cov=. --cov-report=term-missing --cov-report=html --cov-fail-under=75 --html=pytest_report.html --self-contained-html --junitxml=test-results.xml
-      - name: Upload coverage HTML
+          python manage.py makemigrations --check --dry-run
+      - name: Run fast tests (exclude slow) with coverage
+        working-directory: "Second Half/Project/Courpera"
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.dev
+        run: |
+          pytest -vv -ra -m "not slow" --durations=10 --maxfail=1 --cov=. --cov-report=term-missing --cov-report=html --cov-report=xml --cov-fail-under=86 --html=pytest_report.html --self-contained-html --junitxml=test-results.xml
+      - name: Upload coverage HTML (fast)
         uses: actions/upload-artifact@v4
         with:
-          name: htmlcov
+          name: htmlcov-fast
           path: "Second Half/Project/Courpera/htmlcov"
-      - name: Upload pytest HTML report
+      - name: Upload coverage XML (fast)
         uses: actions/upload-artifact@v4
         with:
-          name: pytest-report
+          name: coverage-xml-fast
+          path: "Second Half/Project/Courpera/coverage.xml"
+      - name: Upload pytest HTML report (fast)
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-report-fast
           path: "Second Half/Project/Courpera/pytest_report.html"
-      - name: Upload JUnit XML
+      - name: Upload JUnit XML (fast)
         uses: actions/upload-artifact@v4
         with:
-          name: junit-xml
+          name: junit-xml-fast
+          path: "Second Half/Project/Courpera/test-results.xml"
+
+  test-slow:
+    runs-on: ubuntu-latest
+    needs: test-fast
+    strategy:
+      matrix:
+        python-version: ['3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r "Second Half/Project/Courpera/requirements.txt"
+          pip install pytest-cov pytest-html
+      - name: Run migrations
+        working-directory: "Second Half/Project/Courpera"
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.dev
+        run: |
+          python manage.py migrate --noinput
+      - name: Run slow tests (markers=slow)
+        working-directory: "Second Half/Project/Courpera"
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.dev
+        run: |
+          pytest -vv -ra -m slow --durations=10 --maxfail=1 --html=pytest_report.html --self-contained-html --junitxml=test-results.xml
+      - name: Upload pytest HTML report (slow)
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-report-slow
+          path: "Second Half/Project/Courpera/pytest_report.html"
+      - name: Upload JUnit XML (slow)
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-xml-slow
           path: "Second Half/Project/Courpera/test-results.xml"

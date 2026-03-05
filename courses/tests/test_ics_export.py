@@ -2,17 +2,18 @@ from __future__ import annotations
 
 import pytest
 from django.contrib.auth.models import User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client
 
 from courses.models import Course
 from materials.models import Material
-from django.core.files.uploadedfile import SimpleUploadedFile
 
 
 @pytest.mark.django_db
 def test_course_calendar_ics_contains_events():
     t = User.objects.create_user(username="tics", password="pw")
-    t.profile.role = "teacher"; t.profile.save(update_fields=["role"])
+    t.profile.role = "teacher"
+    t.profile.save(update_fields=["role"])
     c = Course.objects.create(owner=t, title="ICS Course", description="")
     f1 = SimpleUploadedFile("intro.pdf", b"%PDF-1.4\n", content_type="application/pdf")
     f2 = SimpleUploadedFile("w1.pdf", b"%PDF-1.4\n", content_type="application/pdf")

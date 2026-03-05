@@ -4,30 +4,37 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('courses', '0003_merge_0002_course_syllabus_outcomes_0002_feedback'),
+        ("courses", "0003_merge_0002_course_syllabus_outcomes_0002_feedback"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='course',
-            name='language',
-            field=models.CharField(default='English', max_length=50),
+            model_name="course",
+            name="language",
+            field=models.CharField(default="English", max_length=50),
         ),
         migrations.AddField(
-            model_name='course',
-            name='level',
-            field=models.CharField(choices=[('beginner', 'Beginner'), ('intermediate', 'Intermediate'), ('advanced', 'Advanced')], default='beginner', max_length=20),
+            model_name="course",
+            name="level",
+            field=models.CharField(
+                choices=[
+                    ("beginner", "Beginner"),
+                    ("intermediate", "Intermediate"),
+                    ("advanced", "Advanced"),
+                ],
+                default="beginner",
+                max_length=20,
+            ),
         ),
         migrations.AddField(
-            model_name='course',
-            name='subject',
+            model_name="course",
+            name="subject",
             field=models.CharField(blank=True, max_length=100),
         ),
         migrations.AddField(
-            model_name='course',
-            name='thumbnail',
-            field=models.ImageField(blank=True, null=True, upload_to='thumbnails/'),
+            model_name="course",
+            name="thumbnail",
+            field=models.ImageField(blank=True, null=True, upload_to="thumbnails/"),
         ),
     ]

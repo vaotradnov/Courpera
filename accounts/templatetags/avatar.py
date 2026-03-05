@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+
 from django import template
 from django.conf import settings
 
@@ -21,7 +22,9 @@ def avatar_url(user, size: int = 48) -> str:
         # Role-specific static default; keep deterministic query (size + seed)
         role = getattr(getattr(user, "profile", None), "role", "student")
         img = "avatar-teacher.svg" if role == "teacher" else "avatar-default.svg"
-        seed_src = f"{getattr(user, 'pk', '0')}:{getattr(settings, 'AVATAR_SEED_SALT', 'courpera')}:{role}"
+        seed_src = (
+            f"{getattr(user, 'pk', '0')}:{getattr(settings, 'AVATAR_SEED_SALT', 'courpera')}:{role}"
+        )
         seed = hashlib.sha256(seed_src.encode()).hexdigest()
         return f"/static/img/{img}?size={size}&seed={seed}"
     except Exception:

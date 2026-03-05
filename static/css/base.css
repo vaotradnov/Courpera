@@ -158,7 +158,7 @@ a:focus, button:focus, input:focus, select:focus, textarea:focus { box-shadow: 0
 .input { padding: .35rem .5rem; border: 1px solid var(--cp-colour-border); border-radius: var(--cp-radius-1); font: inherit; }
 .btn { display: inline-flex; align-items: center; justify-content: center; padding: .45rem .75rem; border-radius: var(--cp-radius-1); border: 1px solid transparent; background: var(--cp-colour-primary); color: #fff; font: inherit; cursor: pointer; text-decoration: none; line-height: 1.2; }
 .btn:hover, .btn:focus { filter: brightness(0.95); }
-.btn-secondary { display: inline-flex; align-items: center; justify-content: center; padding: .45rem .75rem; border-radius: var(--cp-radius-1); border: 1px solid var(--cp-colour-primary); background: transparent; color: var(--cp-colour-primary); text-decoration: none; line-height: 1.2; font: inherit; } 
+.btn-secondary { display: inline-flex; align-items: center; justify-content: center; padding: .45rem .75rem; border-radius: var(--cp-radius-1); border: 1px solid var(--cp-colour-primary); background: transparent; color: var(--cp-colour-primary); text-decoration: none; line-height: 1.2; font: inherit; }
 .btn-secondary:hover, .btn-secondary:focus { background: rgba(42,115,204,0.06); }
 .btn-link { background: none; border: 0; padding: 0; color: var(--cp-colour-primary); cursor: pointer; font: inherit; }
 .btn-link:hover, .btn-link:focus { text-decoration: underline; }

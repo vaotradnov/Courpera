@@ -1,10 +1,9 @@
-from django.db import migrations, models
 import django.db.models.deletion
 from django.conf import settings
+from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("assignments", "0006_backfill_published_defaults"),
     ]
@@ -23,7 +22,13 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name="attempt",
             name="graded_by",
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name="graded_attempts", to=settings.AUTH_USER_MODEL),
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="graded_attempts",
+                to=settings.AUTH_USER_MODEL,
+            ),
         ),
         migrations.AddField(
             model_name="attempt",
@@ -53,16 +58,51 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="Grade",
             fields=[
-                ("id", models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                    ),
+                ),
                 ("achieved_marks", models.FloatField(default=0.0)),
                 ("max_marks", models.FloatField(default=100.0)),
                 ("released_at", models.DateTimeField(blank=True, null=True)),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
-                ("assignment", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="grades", to="assignments.assignment")),
-                ("course", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="grades", to="courses.course")),
-                ("student", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="grades", to=settings.AUTH_USER_MODEL)),
-                ("attempt", models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name="grade_records", to="assignments.attempt")),
+                (
+                    "assignment",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="grades",
+                        to="assignments.assignment",
+                    ),
+                ),
+                (
+                    "course",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="grades",
+                        to="courses.course",
+                    ),
+                ),
+                (
+                    "student",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="grades",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "attempt",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="grade_records",
+                        to="assignments.attempt",
+                    ),
+                ),
             ],
             options={
                 "unique_together": {("assignment", "student")},
@@ -77,4 +117,3 @@ class Migration(migrations.Migration):
             index=models.Index(fields=["course", "student"], name="assign_grd_crs_stu_idx"),
         ),
     ]
-

@@ -1,11 +1,11 @@
 """Base Django settings for Courpera (Stage 2 — split + API docs).
 
-This base layer is environment-agnostic. Development/production-specific
-settings extend from this module in `dev.py` and `prod.py`.
+This base layer is environment agnostic. Development/production settings
+extend this module in `dev.py` and `prod.py`.
 """
-from pathlib import Path
-import os
 
+import os
+from pathlib import Path
 
 # Base directory of the project (repository root)
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -24,10 +24,8 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
-    "daphne",
     "django.contrib.staticfiles",
     # Third-party apps (API, docs, and Channels runtime)
-    "channels",
     "rest_framework",
     "django_filters",
     "drf_spectacular",
@@ -51,9 +49,26 @@ except Exception:
 else:
     INSTALLED_APPS.append("drf_spectacular_sidecar")
 
+# Optional: include Daphne if installed (ASGI server) and ensure ordering before staticfiles
+try:  # pragma: no cover - optional dependency
+    import daphne  # type: ignore  # noqa: F401
+except Exception:
+    pass
+else:
+    # Ensure 'daphne' appears before 'django.contrib.staticfiles'
+    static_label = "django.contrib.staticfiles"
+    # Remove existing entries to re-insert in correct order
+    INSTALLED_APPS = [a for a in INSTALLED_APPS if a != "daphne"]
+    if static_label in INSTALLED_APPS:
+        idx = INSTALLED_APPS.index(static_label)
+        INSTALLED_APPS.insert(idx, "daphne")
+    else:
+        INSTALLED_APPS.append("daphne")
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "config.middleware.ContentSecurityPolicyMiddleware",
+    "config.middleware.SecurityHeadersMiddleware",
     # WhiteNoise will be enabled in production; keep ordering stable now
     # "whitenoise.middleware.WhiteNoiseMiddleware",  # enabled in prod.py
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -89,7 +104,7 @@ WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
 
-# Database — SQLite-first as per project philosophy
+# Database — SQLite first as per project philosophy
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
@@ -98,7 +113,7 @@ DATABASES = {
 }
 
 
-# Internationalisation (Canadian English; Mountain Time zone for Calgary)
+# Internationalisation (Canadian English; default Europe/London)
 LANGUAGE_CODE = "en-ca"
 TIME_ZONE = "Europe/London"
 USE_I18N = True
@@ -140,6 +155,10 @@ REST_FRAMEWORK = {
     "DATETIME_FORMAT": "iso-8601",
 }
 
+# Catalogue caching (used by courses.views.course_list)
+CATALOGUE_CACHE_ENABLED = True
+CATALOGUE_CACHE_SECONDS = 60
+
 SPECTACULAR_SETTINGS = {
     "TITLE": "Courpera API",
     "DESCRIPTION": "REST API and OpenAPI documentation for Courpera.",
@@ -163,9 +182,7 @@ if REDIS_URL:
         }
     }
 else:
-    CHANNEL_LAYERS = {
-        "default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}
-    }
+    CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}
 
 # Authentication redirects (used by Django auth views)
 LOGIN_URL = "/accounts/login/"
@@ -188,7 +205,10 @@ AVATAR_SEED_SALT = os.environ.get("AVATAR_SEED_SALT", "courpera-salt")
 # Password policy
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
-    {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator", "OPTIONS": {"min_length": 12}},
+    {
+        "NAME": "django.contrib.auth.password_validation.MinimumLengthValidator",
+        "OPTIONS": {"min_length": 12},
+    },
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
     {"NAME": "accounts.validators.PasswordComplexityValidator"},
@@ -201,3 +221,10 @@ PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.BCryptSHA256PasswordHasher",
     "django.contrib.auth.hashers.ScryptPasswordHasher",
 ]
+# Optional: include Channels if installed (websocket support)
+try:  # pragma: no cover - optional dependency
+    import channels  # type: ignore  # noqa: F401
+except Exception:
+    pass
+else:
+    INSTALLED_APPS.append("channels")

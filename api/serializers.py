@@ -3,16 +3,16 @@
 Keep responses modest and role-aware. File uploads occur via HTML forms;
 the API exposes metadata for materials and download URLs where allowed.
 """
+
 from __future__ import annotations
 
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
-from accounts.models import UserProfile
+from activity.models import Status
 from courses.models import Course, Enrolment
 from courses.models_feedback import Feedback
 from materials.models import Material
-from activity.models import Status
 
 User = get_user_model()
 
@@ -76,4 +76,3 @@ class StatusSerializer(serializers.ModelSerializer):
         model = Status
         fields = ("id", "text", "created_at")
         read_only_fields = ("created_at",)
-

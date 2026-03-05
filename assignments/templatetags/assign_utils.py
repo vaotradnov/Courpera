@@ -16,31 +16,10 @@ def get_item(d, key):
 def time_until(dt):
     """Return a compact relative time until the given datetime.
 
-    Formats like '2d 3h', '3h 15m', or '0m' when within a minute.
-    If dt is None, returns an empty string. If dt is in the past, returns '0m'.
+    Examples: '2d', '3h 15m', or '0m' when within a minute or past.
     """
     if not dt:
         return ""
-
-
-@register.filter
-def filesize(num):
-    """Human-readable file size (B/KB/MB/GB).
-
-    Accepts int/float/str; returns a compact string like '1.2 MB'.
-    """
-    try:
-        n = float(num or 0)
-    except Exception:
-        n = 0.0
-    units = ["B", "KB", "MB", "GB"]
-    i = 0
-    while n >= 1024 and i < len(units) - 1:
-        n /= 1024.0
-        i += 1
-    if i == 0:
-        return f"{int(n)} {units[i]}"
-    return f"{n:.1f} {units[i]}"
     try:
         now = timezone.now()
         delta = dt - now
@@ -56,10 +35,26 @@ def filesize(num):
         if hours:
             parts.append(f"{hours}h")
         if not days and mins and hours < 6:
-            # Show minutes when under 6 hours to add precision
             parts.append(f"{mins}m")
         if not parts:
             parts.append("0m")
         return " ".join(parts)
     except Exception:
         return ""
+
+
+@register.filter
+def filesize(num):
+    """Human-readable file size (B/KB/MB/GB)."""
+    try:
+        n = float(num or 0)
+    except Exception:
+        n = 0.0
+    units = ["B", "KB", "MB", "GB"]
+    i = 0
+    while n >= 1024 and i < len(units) - 1:
+        n /= 1024.0
+        i += 1
+    if i == 0:
+        return f"{int(n)} {units[i]}"
+    return f"{n:.1f} {units[i]}"

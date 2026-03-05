@@ -1,8 +1,10 @@
 """ASGI entrypoint for Courpera (HTTP and WebSocket)."""
+
 import os
-from django.core.asgi import get_asgi_application
-from channels.routing import ProtocolTypeRouter, URLRouter
+
 from channels.auth import AuthMiddlewareStack
+from channels.routing import ProtocolTypeRouter, URLRouter
+from django.core.asgi import get_asgi_application
 
 # Default to development settings for local runs; override in deployment.
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")

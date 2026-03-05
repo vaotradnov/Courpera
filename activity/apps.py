@@ -7,5 +7,5 @@ class ActivityConfig(AppConfig):
 
     def ready(self) -> None:  # pragma: no cover
         from . import signals  # noqa: F401
-        return super().ready()
 
+        return super().ready()

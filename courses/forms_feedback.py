@@ -1,4 +1,5 @@
 """Forms for course feedback."""
+
 from __future__ import annotations
 
 from django import forms
@@ -15,4 +16,3 @@ class FeedbackForm(forms.ModelForm):
         widgets = {
             "comment": forms.Textarea(attrs={"rows": 3, "maxlength": 1000}),
         }
-

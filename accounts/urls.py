@@ -3,16 +3,16 @@ from django.urls import path
 from .views import (
     CourperaLoginView,
     CourperaLogoutView,
-    register,
-    home,
-    home_teacher,
-    home_student,
-    profile_edit,
-    search_users,
     CourperaPasswordChangeView,
+    avatar_proxy,
+    home,
+    home_student,
+    home_teacher,
     password_change_done,
     password_forgot,
-    avatar_proxy,
+    profile_edit,
+    register,
+    search_users,
     student_grades,
 )
 

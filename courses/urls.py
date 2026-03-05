@@ -1,18 +1,18 @@
 from django.urls import path
 
 from .views import (
-    course_list,
+    course_add_student,
     course_create,
-    course_edit,
-    course_syllabus_edit,
     course_detail,
+    course_edit,
+    course_enrol,
+    course_feedback,
     course_gradebook,
     course_gradebook_csv,
-    course_enrol,
-    course_unenrol,
-    course_feedback,
+    course_list,
     course_remove_student,
-    course_add_student,
+    course_syllabus_edit,
+    course_unenrol,
 )
 from .views_ics import course_calendar
 

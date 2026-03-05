@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-from typing import Dict, Any
+from typing import Any
 
-from django.utils import timezone
 from django.db import transaction
+from django.utils import timezone
 
-from .models import Assignment, QuizQuestion, QuizAnswerChoice, Attempt, Grade, AssignmentType
-from .models import Assignment as _AssignmentModel
 from courses.models import Course
-from django.contrib.auth import get_user_model
+
+from .models import Assignment, AssignmentType, Attempt, Grade
+from .models import Assignment as _AssignmentModel
 
 
 def grade_quiz(assignment: Assignment, selected: dict[int, int]) -> dict[str, Any]:
@@ -69,7 +69,9 @@ def quiz_readiness(assignment: Assignment) -> dict[str, Any]:
 
 
 @transaction.atomic
-def upsert_grade_for_attempt(attempt: Attempt, *, release: bool = False, override_reason: str | None = None) -> Grade:
+def upsert_grade_for_attempt(
+    attempt: Attempt, *, release: bool = False, override_reason: str | None = None
+) -> Grade:
     """Create or update the Grade record in response to an attempt.
 
     Behaviour:
@@ -119,13 +121,22 @@ def upsert_grade_for_attempt(attempt: Attempt, *, release: bool = False, overrid
                 grade.released_at = grade.released_at or timezone.now()
             elif release:
                 grade.released_at = timezone.now()
-            grade.save(update_fields=["attempt", "achieved_marks", "max_marks", "released_at", "updated_at"])
+            grade.save(
+                update_fields=[
+                    "attempt",
+                    "achieved_marks",
+                    "max_marks",
+                    "released_at",
+                    "updated_at",
+                ]
+            )
             # Mark attempt as released for quizzes, or when explicitly released
-            if a.type == AssignmentType.QUIZ and not attempt.released:
-                attempt.released = True
-                attempt.released_at = timezone.now()
-                attempt.save(update_fields=["released", "released_at"])
-            elif release and not attempt.released:
+            if (
+                a.type == AssignmentType.QUIZ
+                and not attempt.released
+                or release
+                and not attempt.released
+            ):
                 attempt.released = True
                 attempt.released_at = timezone.now()
                 attempt.save(update_fields=["released", "released_at"])
@@ -147,7 +158,9 @@ def upsert_grade_for_attempt(attempt: Attempt, *, release: bool = False, overrid
                 attempt.released = True
                 attempt.released_at = timezone.now()
                 attempt.save(update_fields=["released", "released_at"])
-        grade.save(update_fields=["attempt", "achieved_marks", "max_marks", "released_at", "updated_at"])
+        grade.save(
+            update_fields=["attempt", "achieved_marks", "max_marks", "released_at", "updated_at"]
+        )
 
     return grade
 
@@ -182,7 +195,9 @@ def recalc_grades_for_assignment(assignment: Assignment) -> None:
     policy = getattr(a, "attempts_policy", _AssignmentModel.AttemptsPolicy.LATEST)
     # Build attempts per student
     attempts = list(
-        Attempt.objects.filter(assignment=a).select_related("student").order_by("student_id", "submitted_at")
+        Attempt.objects.filter(assignment=a)
+        .select_related("student")
+        .order_by("student_id", "submitted_at")
     )
     by_student: dict[int, list[Attempt]] = {}
     for att in attempts:
@@ -196,7 +211,9 @@ def recalc_grades_for_assignment(assignment: Assignment) -> None:
                 marks = att.marks_awarded
                 if marks is None and a.type == AssignmentType.QUIZ:
                     try:
-                        marks = round((float(att.score or 0.0) / 100.0) * float(a.max_marks or 100.0), 2)
+                        marks = round(
+                            (float(att.score or 0.0) / 100.0) * float(a.max_marks or 100.0), 2
+                        )
                     except Exception:
                         marks = 0.0
                 val = float(marks or 0.0)

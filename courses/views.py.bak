@@ -90,5 +90,3 @@ def course_remove_student(request: HttpRequest, pk: int, user_id: int) -> HttpRe
         Enrolment.objects.filter(course=course, student_id=user_id).delete()
         messages.success(request, "Student removed from course.")
     return redirect("courses:detail", pk=course.pk)
-
-

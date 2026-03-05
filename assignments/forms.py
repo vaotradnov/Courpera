@@ -1,32 +1,52 @@
 from __future__ import annotations
 
+from typing import Any, cast
+
 from django import forms
 from django.utils import timezone
 
-from .models import Assignment, QuizQuestion, QuizAnswerChoice, AssignmentType
+from .models import Assignment, AssignmentType, QuizAnswerChoice, QuizQuestion
 
 
 class AssignmentForm(forms.ModelForm):
     class Meta:
         model = Assignment
-        fields = ("type", "title", "instructions", "available_from", "deadline", "attempts_allowed", "max_marks", "attempts_policy")
+        fields = (
+            "type",
+            "title",
+            "instructions",
+            "available_from",
+            "deadline",
+            "attempts_allowed",
+            "max_marks",
+            "attempts_policy",
+        )
         widgets = {
             "instructions": forms.Textarea(attrs={"rows": 4}),
             # Use a local datetime input for better UX (browser-native picker)
-            "deadline": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
-            "available_from": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
+            "deadline": forms.DateTimeInput(
+                attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"
+            ),
+            "available_from": forms.DateTimeInput(
+                attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"
+            ),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # Ensure only the defined types are selectable and set a sensible default
         from .models import AssignmentType as _AT
-        self.fields["type"].choices = list(_AT.choices)
+
+        cast(forms.ChoiceField, self.fields["type"]).choices = list(_AT.choices)
         if not self.initial.get("type"):
             self.fields["type"].initial = _AT.QUIZ
         # Set attempts_policy initial based on type (quiz -> Best; else Latest)
         try:
-            atype = (self.data.get("type") if hasattr(self, "data") and self.data else None) or self.initial.get("type") or getattr(self.instance, "type", None)
+            atype = (
+                (self.data.get("type") if hasattr(self, "data") and self.data else None)
+                or self.initial.get("type")
+                or getattr(self.instance, "type", None)
+            )
             if atype == AssignmentType.QUIZ:
                 self.fields["attempts_policy"].initial = Assignment.AttemptsPolicy.BEST
             elif atype:
@@ -41,12 +61,12 @@ class AssignmentForm(forms.ModelForm):
             d = self.instance.deadline
             if timezone.is_aware(d):
                 d = timezone.localtime(d, timezone.get_current_timezone())
-            self.initial["deadline"] = d.strftime("%Y-%m-%dT%H:%M")
+            self.fields["deadline"].initial = d.strftime("%Y-%m-%dT%H:%M")
         if self.instance and getattr(self.instance, "available_from", None):
             a = self.instance.available_from
             if timezone.is_aware(a):
                 a = timezone.localtime(a, timezone.get_current_timezone())
-            self.initial["available_from"] = a.strftime("%Y-%m-%dT%H:%M")
+            self.fields["available_from"].initial = a.strftime("%Y-%m-%dT%H:%M")
 
     def clean_deadline(self):
         d = self.cleaned_data.get("deadline")
@@ -68,7 +88,7 @@ class AssignmentForm(forms.ModelForm):
         return a
 
     def clean(self):
-        cleaned = super().clean()
+        cleaned = cast(dict[str, Any], super().clean())
         a = cleaned.get("available_from")
         d = cleaned.get("deadline")
         if a and d and a >= d:
@@ -84,12 +104,15 @@ class AssignmentForm(forms.ModelForm):
         if val < 1:
             raise forms.ValidationError("Attempts must be at least 1.")
         # If editing an existing assignment, prevent lowering below used attempts
-        if getattr(self, 'instance', None) and getattr(self.instance, 'pk', None):
+        if getattr(self, "instance", None) and getattr(self.instance, "pk", None):
             try:
                 from .models import Attempt  # local import to avoid cycles
+
                 used = Attempt.objects.filter(assignment=self.instance).count()
                 if val < used:
-                    raise forms.ValidationError(f"Cannot set attempts below attempts already used ({used}).")
+                    raise forms.ValidationError(
+                        f"Cannot set attempts below attempts already used ({used})."
+                    )
             except Exception:
                 pass
         return val
@@ -102,7 +125,8 @@ class AssignmentForm(forms.ModelForm):
                 return getattr(self.instance, "max_marks", 100.0)
             return 100.0
         try:
-            mm = float(mm)
+            mm_val = cast(float | int | str, mm)
+            mm = float(mm_val)
         except Exception:
             raise forms.ValidationError("Invalid maximum marks.")
         if mm <= 0:
@@ -114,7 +138,11 @@ class QuizQuestionForm(forms.ModelForm):
     class Meta:
         model = QuizQuestion
         fields = ("text",)
-        widgets = {"text": forms.Textarea(attrs={"rows": 2, "class": "w-100", "placeholder": "Question text"})}
+        widgets = {
+            "text": forms.Textarea(
+                attrs={"rows": 2, "class": "w-100", "placeholder": "Question text"}
+            )
+        }
 
 
 class QuizAnswerChoiceForm(forms.ModelForm):
@@ -123,17 +151,35 @@ class QuizAnswerChoiceForm(forms.ModelForm):
         fields = ("text", "is_correct", "explanation")
         widgets = {
             "text": forms.TextInput(attrs={"class": "input w-100", "placeholder": "Answer text"}),
-            "explanation": forms.Textarea(attrs={"rows": 3, "class": "w-100 no-resize", "placeholder": "Optional; shown in feedback after attempt"}),
+            "explanation": forms.Textarea(
+                attrs={
+                    "rows": 3,
+                    "class": "w-100 no-resize",
+                    "placeholder": "Optional; shown in feedback after attempt",
+                }
+            ),
         }
 
 
 class AssignmentMetaForm(forms.ModelForm):
     class Meta:
         model = Assignment
-        fields = ("title", "instructions", "available_from", "deadline", "attempts_allowed", "max_marks", "attempts_policy")
+        fields = (
+            "title",
+            "instructions",
+            "available_from",
+            "deadline",
+            "attempts_allowed",
+            "max_marks",
+            "attempts_policy",
+        )
         widgets = {
-            "deadline": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
-            "available_from": forms.DateTimeInput(attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"),
+            "deadline": forms.DateTimeInput(
+                attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"
+            ),
+            "available_from": forms.DateTimeInput(
+                attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"
+            ),
             "instructions": forms.Textarea(attrs={"rows": 4}),
         }
 
@@ -143,12 +189,12 @@ class AssignmentMetaForm(forms.ModelForm):
             d = self.instance.deadline
             if timezone.is_aware(d):
                 d = timezone.localtime(d, timezone.get_current_timezone())
-            self.initial["deadline"] = d.strftime("%Y-%m-%dT%H:%M")
+            self.fields["deadline"].initial = d.strftime("%Y-%m-%dT%H:%M")
         if self.instance and getattr(self.instance, "available_from", None):
             a = self.instance.available_from
             if timezone.is_aware(a):
                 a = timezone.localtime(a, timezone.get_current_timezone())
-            self.initial["available_from"] = a.strftime("%Y-%m-%dT%H:%M")
+            self.fields["available_from"].initial = a.strftime("%Y-%m-%dT%H:%M")
         # Add client-side min attribute to inputs (current local time)
         try:
             now = timezone.localtime(timezone.now(), timezone.get_current_timezone())
@@ -159,7 +205,9 @@ class AssignmentMetaForm(forms.ModelForm):
                 self.fields["deadline"].widget.attrs.setdefault("min", now_str)
             # Set attempts_policy initial based on current type if empty
             if not self.fields["attempts_policy"].initial:
-                atype = (self.data.get("type") if hasattr(self, "data") and self.data else None) or getattr(self.instance, "type", None)
+                atype = (
+                    self.data.get("type") if hasattr(self, "data") and self.data else None
+                ) or getattr(self.instance, "type", None)
                 if atype == AssignmentType.QUIZ:
                     self.fields["attempts_policy"].initial = Assignment.AttemptsPolicy.BEST
                 elif atype:
@@ -186,7 +234,7 @@ class AssignmentMetaForm(forms.ModelForm):
         return a
 
     def clean(self):
-        cleaned = super().clean()
+        cleaned = cast(dict[str, Any], super().clean())
         a = cleaned.get("available_from")
         d = cleaned.get("deadline")
         if a and d and a >= d:
@@ -201,12 +249,15 @@ class AssignmentMetaForm(forms.ModelForm):
             raise forms.ValidationError("Invalid attempts value.")
         if val < 1:
             raise forms.ValidationError("Attempts must be at least 1.")
-        if getattr(self, 'instance', None) and getattr(self.instance, 'pk', None):
+        if getattr(self, "instance", None) and getattr(self.instance, "pk", None):
             try:
                 from .models import Attempt
+
                 used = Attempt.objects.filter(assignment=self.instance).count()
                 if val < used:
-                    raise forms.ValidationError(f"Cannot set attempts below attempts already used ({used}).")
+                    raise forms.ValidationError(
+                        f"Cannot set attempts below attempts already used ({used})."
+                    )
             except Exception:
                 pass
         return val
@@ -218,7 +269,8 @@ class AssignmentMetaForm(forms.ModelForm):
                 return getattr(self.instance, "max_marks", 100.0)
             return 100.0
         try:
-            mm = float(mm)
+            mm_val = cast(float | int | str, mm)
+            mm = float(mm_val)
         except Exception:
             raise forms.ValidationError("Invalid maximum marks.")
         if mm <= 0:

@@ -3,7 +3,9 @@
 Provided for completeness; the project will use ASGI in production once
 Channels is introduced, but WSGI remains useful for certain tools.
 """
+
 import os
+
 from django.core.wsgi import get_wsgi_application
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.dev")

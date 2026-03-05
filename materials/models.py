@@ -4,6 +4,7 @@ Defines `Material` uploaded by a teacher to a course. Uploads are
 limited to 25 MB and a small set of MIME types / extensions to keep the
 demo safe and predictable.
 """
+
 from __future__ import annotations
 
 import mimetypes
@@ -14,7 +15,6 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from courses.models import Course
-
 
 ALLOWED_MIME = {
     "application/pdf",
@@ -50,7 +50,9 @@ class Material(models.Model):
     """A file attached to a course, uploaded by a teacher."""
 
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="materials")
-    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="materials")
+    uploaded_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="materials"
+    )
     title = models.CharField(max_length=200)
     file = models.FileField(upload_to="materials/", validators=[validate_upload])
     size_bytes = models.PositiveIntegerField(default=0)
@@ -72,4 +74,3 @@ class Material(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"{self.title} ({self.course_id})"
-

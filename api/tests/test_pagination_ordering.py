@@ -3,13 +3,15 @@ from __future__ import annotations
 import pytest
 from django.contrib.auth.models import User
 from django.test import Client
+
 from courses.models import Course
 
 
 @pytest.mark.django_db
 def test_courses_ordering_by_title_across_pages_and_out_of_range():
     t = User.objects.create_user(username="porder", password="pw")
-    t.profile.role = "teacher"; t.profile.save(update_fields=["role"])
+    t.profile.role = "teacher"
+    t.profile.save(update_fields=["role"])
     titles = [f"Course {i:03d}" for i in range(1, 41)]
     for title in titles:
         Course.objects.create(owner=t, title=title, description="")
@@ -36,4 +38,3 @@ def test_courses_ordering_by_title_across_pages_and_out_of_range():
     if r_out.status_code == 200:
         payload = r_out.json()
         assert isinstance(payload.get("results", []), list)
-

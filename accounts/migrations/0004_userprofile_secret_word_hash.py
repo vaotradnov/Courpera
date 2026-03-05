@@ -2,7 +2,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("accounts", "0003_userprofile_instructor_id"),
     ]
@@ -14,4 +13,3 @@ class Migration(migrations.Migration):
             field=models.CharField(max_length=128, blank=True),
         ),
     ]
-

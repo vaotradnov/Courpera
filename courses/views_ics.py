@@ -4,9 +4,11 @@ Generates a basic iCalendar file with one event per material upload.
 This avoids adding a dedicated events model while still demonstrating
 ICS generation and consumption.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
+
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404
 
@@ -14,7 +16,8 @@ from .models import Course
 
 
 def _ical_escape(s: str) -> str:
-    return s.replace(",", "\, ").replace(";", "\; ").replace("\n", "\\n")
+    # Use raw backslash escapes to avoid Python SyntaxWarning on unknown escapes.
+    return s.replace(",", r"\, ").replace(";", r"\; ").replace("\n", "\\n")
 
 
 def course_calendar(request: HttpRequest, pk: int) -> HttpResponse:
@@ -45,4 +48,3 @@ def course_calendar(request: HttpRequest, pk: int) -> HttpResponse:
     resp = HttpResponse(body, content_type="text/calendar")
     resp["Content-Disposition"] = f"attachment; filename=course-{course.pk}.ics"
     return resp
-
