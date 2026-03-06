@@ -32,10 +32,12 @@ def _get_or_create_course_room(course_id: int) -> Room:
 
 
 @database_sync_to_async
-def _persist_room_message(room_id: int, sender, text: str):
+def _persist_room_message(room_id: int, sender, text: str, parent_id: int | None = None) -> Message:
     if len(text) > 500:
         text = text[:500]
-    Message.objects.create(room_id=room_id, sender=sender, text=text)
+    return Message.objects.create(
+        room_id=room_id, sender=sender, text=text, parent_message_id=parent_id
+    )
 
 
 class CourseChatConsumer(AsyncJsonWebsocketConsumer):
@@ -57,6 +59,7 @@ class CourseChatConsumer(AsyncJsonWebsocketConsumer):
 
     async def receive_json(self, content, **kwargs):
         msg = (content or {}).get("message", "").strip()
+        parent_id = content.get("parent_id") if isinstance(content, dict) else None
         if not msg:
             return
         # Enforce basic per-connection rate limiting to reduce spam
@@ -71,11 +74,19 @@ class CourseChatConsumer(AsyncJsonWebsocketConsumer):
             self._rate_ts.append(now)
         except Exception:
             pass
-        await _persist_room_message(self.room.id, self.scope.get("user"), msg)
+        m = await _persist_room_message(
+            self.room.id,
+            self.scope.get("user"),
+            msg,
+            parent_id if isinstance(parent_id, int) else None,
+        )
         payload = {
-            "type": "chat.message",
+            "type": "message.new",
+            "id": getattr(m, "id", None),
             "sender": getattr(self.scope.get("user"), "username", ""),
             "message": msg,
+            "created_at": m.created_at.isoformat(),
+            "parent_id": parent_id if isinstance(parent_id, int) else None,
         }
         await self.channel_layer.group_send(
             self.room_name, {"type": "chat_message", "payload": payload}

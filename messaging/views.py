@@ -2,14 +2,17 @@ from __future__ import annotations
 
 from typing import cast
 
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 from django.http import HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
 from courses.models import Course, Enrolment
 
-from .models import Message, Room, RoomMembership
+from .models import Message, Reaction, Room, RoomMembership
 
 
 def _is_owner(user: User, course: Course) -> bool:
@@ -48,7 +51,7 @@ def course_history(request: HttpRequest, course_id: int) -> JsonResponse:
 
 @login_required
 def room_messages(request: HttpRequest, room_id: int) -> JsonResponse:
-    """Paginated history for a room. Requires membership or course enrolment."""
+    """GET: paginated history; POST: create message (optional parent_id)."""
     room = get_object_or_404(Room.objects.select_related("course"), pk=room_id)
     # Auth
     if room.kind == Room.KIND_COURSE:
@@ -60,6 +63,36 @@ def room_messages(request: HttpRequest, room_id: int) -> JsonResponse:
         user = cast(User, request.user)
         if not RoomMembership.objects.filter(room=room, user_id=user.id).exists():
             return JsonResponse({"detail": "Not permitted"}, status=403)
+
+    if request.method == "POST":
+        # Create a new message
+        txt = (request.POST.get("message") or "").strip()
+        if not txt:
+            return JsonResponse({"detail": "Message required"}, status=400)
+        parent_id = request.POST.get("parent_id")
+        parent = None
+        if parent_id and parent_id.isdigit():
+            parent = Message.objects.filter(room=room, pk=int(parent_id)).first()
+        if len(txt) > 500:
+            txt = txt[:500]
+        m = Message.objects.create(room=room, sender=user, text=txt, parent_message=parent)
+        # Broadcast
+        layer = get_channel_layer()
+        async_to_sync(layer.group_send)(
+            f"room_{room.id}",
+            {
+                "type": "chat_message",
+                "payload": {
+                    "type": "message.new",
+                    "id": m.id,
+                    "sender": user.username,
+                    "message": m.text,
+                    "created_at": m.created_at.isoformat(),
+                    "parent_id": m.parent_message_id,
+                },
+            },
+        )
+        return JsonResponse({"id": m.id})
 
     # Pagination: before=iso timestamp, limit=1..100
     before = request.GET.get("before")
@@ -148,3 +181,121 @@ def create_group(request: HttpRequest) -> JsonResponse:
                 room=room, user=u, defaults={"role": RoomMembership.ROLE_MEMBER}
             )
     return JsonResponse({"room_id": room.id})
+
+
+@login_required
+def edit_message(request: HttpRequest, message_id: int) -> JsonResponse:
+    """Edit a message (sender within 15 min or room owner)."""
+    if request.method not in {"PATCH", "POST"}:
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+    msg = get_object_or_404(Message.objects.select_related("room", "sender"), pk=message_id)
+    user = cast(User, request.user)
+    room = msg.room
+    is_owner = RoomMembership.objects.filter(
+        room=room, user_id=user.id, role=RoomMembership.ROLE_OWNER
+    ).exists()
+    window_ok = (timezone.now() - msg.created_at).total_seconds() <= 15 * 60
+    if not (user.id == msg.sender_id and window_ok) and not is_owner:
+        return JsonResponse({"detail": "Not permitted"}, status=403)
+    text = (request.POST.get("message") or "").strip()
+    if not text:
+        return JsonResponse({"detail": "Message required"}, status=400)
+    if len(text) > 500:
+        text = text[:500]
+    msg.text = text
+    msg.edited_at = timezone.now()
+    msg.save(update_fields=["text", "edited_at"])
+    layer = get_channel_layer()
+    async_to_sync(layer.group_send)(
+        f"room_{room.id}",
+        {
+            "type": "chat_message",
+            "payload": {
+                "type": "message.update",
+                "id": msg.id,
+                "message": msg.text,
+                "edited_at": msg.edited_at.isoformat() if msg.edited_at else None,
+            },
+        },
+    )
+    return JsonResponse({"id": msg.id, "edited_at": msg.edited_at.isoformat()})
+
+
+@login_required
+def delete_message(request: HttpRequest, message_id: int) -> JsonResponse:
+    """Soft-delete a message (sender within 15 min or room owner)."""
+    if request.method not in {"DELETE", "POST"}:
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+    msg = get_object_or_404(Message.objects.select_related("room", "sender"), pk=message_id)
+    user = cast(User, request.user)
+    room = msg.room
+    is_owner = RoomMembership.objects.filter(
+        room=room, user_id=user.id, role=RoomMembership.ROLE_OWNER
+    ).exists()
+    window_ok = (timezone.now() - msg.created_at).total_seconds() <= 15 * 60
+    if not (user.id == msg.sender_id and window_ok) and not is_owner:
+        return JsonResponse({"detail": "Not permitted"}, status=403)
+    msg.deleted_at = timezone.now()
+    msg.deleted_by = user
+    msg.save(update_fields=["deleted_at", "deleted_by"])
+    layer = get_channel_layer()
+    async_to_sync(layer.group_send)(
+        f"room_{room.id}",
+        {
+            "type": "chat_message",
+            "payload": {
+                "type": "message.delete",
+                "id": msg.id,
+                "deleted_at": msg.deleted_at.isoformat() if msg.deleted_at else None,
+            },
+        },
+    )
+    return JsonResponse({"id": msg.id, "deleted": True})
+
+
+@login_required
+def toggle_reaction(request: HttpRequest, message_id: int) -> JsonResponse:
+    """POST add a reaction; DELETE remove."""
+    msg = get_object_or_404(Message.objects.select_related("room"), pk=message_id)
+    user = cast(User, request.user)
+    emoji = (request.POST.get("emoji") or request.GET.get("emoji") or "").strip()
+    if not emoji:
+        return JsonResponse({"detail": "Emoji required"}, status=400)
+    # Auth: member or course owner/enrolled
+    if msg.room.kind == Room.KIND_COURSE:
+        course = msg.room.course
+        if not course or not (_is_owner(user, course) or _is_enrolled(user, course)):
+            return JsonResponse({"detail": "Not permitted"}, status=403)
+    else:
+        if not RoomMembership.objects.filter(room=msg.room, user_id=user.id).exists():
+            return JsonResponse({"detail": "Not permitted"}, status=403)
+    layer = get_channel_layer()
+    if request.method == "DELETE":
+        Reaction.objects.filter(message=msg, user=user, emoji=emoji).delete()
+        async_to_sync(layer.group_send)(
+            f"room_{msg.room_id}",
+            {
+                "type": "chat_message",
+                "payload": {
+                    "type": "reaction.remove",
+                    "message_id": msg.id,
+                    "emoji": emoji,
+                    "user": user.username,
+                },
+            },
+        )
+        return JsonResponse({"removed": True})
+    Reaction.objects.get_or_create(message=msg, user=user, emoji=emoji)
+    async_to_sync(layer.group_send)(
+        f"room_{msg.room_id}",
+        {
+            "type": "chat_message",
+            "payload": {
+                "type": "reaction.add",
+                "message_id": msg.id,
+                "emoji": emoji,
+                "user": user.username,
+            },
+        },
+    )
+    return JsonResponse({"added": True})

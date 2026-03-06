@@ -86,14 +86,42 @@ class Message(models.Model):
     sender = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="messages"
     )
+    parent_message = models.ForeignKey(
+        "self", null=True, blank=True, on_delete=models.SET_NULL, related_name="replies"
+    )
     text = models.CharField(max_length=500)
     created_at = models.DateTimeField(auto_now_add=True)
+    edited_at = models.DateTimeField(null=True, blank=True)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    deleted_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="deleted_messages",
+    )
 
     class Meta:
         ordering = ["created_at", "id"]
         indexes = [
             models.Index(fields=["room", "created_at"], name="msg_room_created_idx"),
+            models.Index(
+                fields=["room", "parent_message", "created_at"], name="msg_room_parent_created_idx"
+            ),
         ]
 
     def __str__(self) -> str:  # pragma: no cover
         return f"r{self.room_id}:{self.sender_id}:{self.text[:16]}"
+
+
+class Reaction(models.Model):
+    message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name="reactions")
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="reactions"
+    )
+    emoji = models.CharField(max_length=16)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("message", "user", "emoji")
+        indexes = [models.Index(fields=["message", "created_at"], name="msg_react_msg_created_idx")]

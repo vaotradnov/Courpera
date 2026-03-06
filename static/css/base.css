@@ -170,6 +170,13 @@ a:focus, button:focus, input:focus, select:focus, textarea:focus { box-shadow: 0
 /* Utilities */
 .inline { display: inline; }
 .chat-log { max-height: 220px; overflow: auto; border: 1px solid var(--cp-colour-border); padding: .5rem; background: #fff; }
+
+/* Chat Drawer (17.02 scaffold) */
+.chat-drawer { position: fixed; right: 0; top: 64px; bottom: 0; width: min(420px, 100%); display: none; background: #fff; border-left: 1px solid var(--cp-colour-border); box-shadow: -2px 0 8px rgba(0,0,0,.06); z-index: 1000; }
+.chat-drawer.open { display: block; }
+.chat-drawer__panel { height: 100%; display: grid; grid-template-columns: 1fr 2fr; }
+.chat-drawer__convos { border-right: 1px solid var(--cp-colour-border); padding: .75rem; overflow: auto; }
+.chat-drawer__messages { padding: .75rem; overflow: auto; }
 .text-right { text-align: right; }
 .avatar { width: 24px; height: 24px; vertical-align: middle; border-radius: 50%; }
 .mb-2 { margin-bottom: .5rem; }
