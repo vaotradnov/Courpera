@@ -46,7 +46,7 @@ CI And Tests
 - Local equivalents:
   - Fast: `pytest -m "not slow" -vv -ra`
   - Slow: `pytest -m slow -vv -ra`
-- Coverage gate is enforced at 80% (see `pytest.ini`).
+- Coverage gate is enforced at 86% (see `pytest.ini`).
 
 Deploy
 - Environment variables:

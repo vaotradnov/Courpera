@@ -37,6 +37,13 @@ from .services import (
     update_attempts_allowed_if_safe,
     widget_now_string,
 )
+from .services_manage import (
+    add_question,
+    delete_question,
+    publish_assignment,
+    unpublish_assignment_if_no_attempts,
+    update_question_text,
+)
 from .utils import (
     grade_quiz,
     quiz_readiness,
@@ -863,49 +870,30 @@ def assignment_manage(request, pk: int):
             if action == "add_question":
                 q_form = QuizQuestionForm(request.POST)
                 if q_form.is_valid():
-                    q = q_form.save(commit=False)
-                    q.assignment = a
-                    q.order = (a.questions.aggregate(models.Max("order")) or {}).get(
-                        "order__max"
-                    ) or 0
-                    q.order += 1
-                    q.save()
-                    messages.success(request, "Question added.")
-                    return redirect("assignments:manage", pk=a.pk)
+                    new_q = add_question(a, q_form.cleaned_data.get("text", ""))
+                    if new_q:
+                        messages.success(request, "Question added.")
+                        return redirect("assignments:manage", pk=a.pk)
             elif action == "update_question":
                 qid = int(request.POST.get("question_id", "0"))
                 txt = (request.POST.get("text") or "").strip()
-                q = a.questions.filter(pk=qid).first()
-                if q and txt:
-                    q.text = txt
-                    q.save(update_fields=["text"])
+                if update_question_text(a, qid, txt):
                     messages.success(request, "Question updated.")
                     return redirect("assignments:manage", pk=a.pk)
             elif action == "delete_question":
                 qid = int(request.POST.get("question_id", "0"))
-                q = a.questions.filter(pk=qid).first()
-                if q:
-                    q.delete()
+                if delete_question(a, qid):
                     messages.success(request, "Question removed.")
                     return redirect("assignments:manage", pk=a.pk)
         elif action == "publish":
-            # Default dates: set availability to now and deadline to one week after if not set
-            if not a.available_from:
-                a.available_from = timezone.now()
-            if not a.deadline:
-                base = a.available_from or timezone.now()
-                a.deadline = base + timedelta(days=7)
-            a.is_published = True
-            a.save(update_fields=["available_from", "deadline", "is_published"])
+            publish_assignment(a)
             messages.success(request, "Assignment published.")
             return redirect("assignments:manage", pk=a.pk)
         elif action == "unpublish":
-            if Attempt.objects.filter(assignment=a).exists():
-                messages.error(request, "Cannot unpublish: attempts exist.")
-            else:
-                a.is_published = False
-                a.save(update_fields=["is_published"])
+            if unpublish_assignment_if_no_attempts(a):
                 messages.success(request, "Assignment unpublished.")
+            else:
+                messages.error(request, "Cannot unpublish: attempts exist.")
             return redirect("assignments:manage", pk=a.pk)
 
     return render(

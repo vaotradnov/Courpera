@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from datetime import datetime, timedelta, tzinfo
 from typing import Any, Mapping, Optional
 
@@ -52,8 +53,17 @@ def update_attempts_allowed_if_safe(assignment: Assignment, new_attempts: int | 
         return False
     if new_attempts < 1:
         return False
-    used = Attempt.objects.filter(assignment=assignment).count()
-    if new_attempts >= used and new_attempts != assignment.attempts_allowed:
+    # Guard against lowering below any student's attempts used.
+    # Use an order_by/first pattern instead of aggregate(Max("c")) to
+    # avoid mypy/django-stubs plugin crashes on some environments.
+    try:
+        ids = list(
+            Attempt.objects.filter(assignment=assignment).values_list("student_id", flat=True)
+        )
+        used_max = max(Counter(ids).values(), default=0)
+    except Exception:
+        used_max = 0
+    if new_attempts >= used_max and new_attempts != assignment.attempts_allowed:
         assignment.attempts_allowed = new_attempts
         assignment.save(update_fields=["attempts_allowed"])
         return True

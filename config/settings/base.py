@@ -140,7 +140,7 @@ REST_FRAMEWORK = {
         "rest_framework.filters.OrderingFilter",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.AllowAny",
+        "rest_framework.permissions.IsAuthenticatedOrReadOnly",
     ],
     # Basic throttling to reduce abuse of API endpoints.
     "DEFAULT_THROTTLE_CLASSES": [

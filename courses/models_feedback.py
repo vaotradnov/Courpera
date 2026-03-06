@@ -8,6 +8,10 @@ from django.db import models
 from .models import Course
 
 
+class FeedbackManager(models.Manager["Feedback"]):
+    pass
+
+
 class Feedback(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name="feedback")
     student = models.ForeignKey(
@@ -24,6 +28,15 @@ class Feedback(models.Model):
         indexes = [
             models.Index(fields=["course", "student"]),
         ]
+        constraints = [
+            models.CheckConstraint(
+                name="feedback_rating_range",
+                condition=models.Q(rating__gte=1) & models.Q(rating__lte=5),
+            )
+        ]
+
+    # Typed manager for better plugin inference
+    objects: FeedbackManager = FeedbackManager()
 
     def __str__(self) -> str:  # pragma: no cover
         # Use related objects' primary keys to avoid mypy complaining about

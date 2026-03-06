@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import csv
 import re
-from typing import Any, cast
+from typing import Callable
 
 from django.conf import settings
 from django.contrib import messages
@@ -26,6 +25,7 @@ from assignments.utils import compute_course_percentage
 
 from .forms import AddStudentForm, CourseForm, SyllabusForm
 from .forms_feedback import FeedbackForm
+from .gradebook import build_grade_rows, gradebook_csv_response
 from .models import Course, Enrolment
 from .models_feedback import Feedback
 
@@ -36,7 +36,12 @@ def _is_enrolled(user, course: Course) -> bool:
     return Enrolment.objects.filter(course=course, student=user).exists()
 
 
-def _catalogue_cache_decorator():
+def _wrap_cache_if_enabled(view_func):
+    """Wrap the view with cache_page when catalogue cache is enabled.
+
+    Using a post-definition wrapper avoids mypy/django-stubs crashes on
+    callable decorators like `@_catalogue_cache_decorator()`.
+    """
     try:
         enabled = getattr(settings, "CATALOGUE_CACHE_ENABLED", True)
         seconds = int(getattr(settings, "CATALOGUE_CACHE_SECONDS", 60))
@@ -44,17 +49,12 @@ def _catalogue_cache_decorator():
         enabled = True
         seconds = 60
     if not enabled:
-
-        def identity(fn):
-            return fn
-
-        return identity
-    return cache_page(seconds)
+        return view_func
+    return cache_page(seconds)(view_func)
 
 
 @vary_on_cookie
-@_catalogue_cache_decorator()
-def course_list(request: HttpRequest) -> HttpResponse:
+def _course_list_impl(request: HttpRequest) -> HttpResponse:
     """Public course catalogue with simple filters and sorting (16.04).
 
     Filters: subject, level, language via query params.
@@ -132,6 +132,27 @@ def course_list(request: HttpRequest) -> HttpResponse:
     return render(request, "courses/list.html", ctx)
 
 
+# Apply cache wrapper after definition to keep type checkers happy
+course_list: Callable[[HttpRequest], HttpResponse]
+course_list = _wrap_cache_if_enabled(_course_list_impl)
+
+
+def _catalogue_cache_decorator():  # Backwards-compat for tests
+    try:
+        enabled = getattr(settings, "CATALOGUE_CACHE_ENABLED", True)
+        seconds = int(getattr(settings, "CATALOGUE_CACHE_SECONDS", 60))
+    except Exception:
+        enabled = True
+        seconds = 60
+    if not enabled:
+
+        def identity(fn):
+            return fn
+
+        return identity
+    return cache_page(seconds)
+
+
 @login_required
 @role_required(Role.TEACHER)
 def course_create(request: HttpRequest) -> HttpResponse:
@@ -189,9 +210,7 @@ def course_detail(request: HttpRequest, pk: int) -> HttpResponse:
         add_form = AddStudentForm()
     if is_enrolled:
         # Initialise form with existing feedback if present
-        existing = (
-            cast(Any, Feedback).objects.filter(course=course, student_id=request.user.id).first()
-        )
+        existing = Feedback.objects.filter(course=course, student_id=request.user.id).first()
         feedback_form = FeedbackForm(instance=existing)
 
     # Prepare syllabus/outcomes lines for rendering
@@ -257,9 +276,7 @@ def course_detail(request: HttpRequest, pk: int) -> HttpResponse:
         "roster": roster,
         "add_form": add_form,
         "feedback_form": feedback_form,
-        "feedback_list": cast(Any, Feedback)
-        .objects.filter(course=course)
-        .select_related("student"),
+        "feedback_list": Feedback.objects.filter(course=course).select_related("student"),
         # Show published assignments on course page for both teacher and enrolled students
         "assignments": ann,
         "student_grades": student_grades,
@@ -419,13 +436,7 @@ def course_gradebook(request: HttpRequest, pk: int) -> HttpResponse:
         .select_related("student", "student__profile")
         .order_by("student__username")
     )
-    grades = Grade.objects.filter(course=course, assignment__in=assignments).select_related(
-        "student", "assignment"
-    )
-    grade_rows: dict[int, dict[int, Grade]] = {}
-    for g in grades:
-        row = grade_rows.setdefault(g.student_id, {})
-        row[g.assignment_id] = g
+    grade_rows = build_grade_rows(course, assignments)
     # Compute course percent per student using Grades
     per_student_pct: dict[int, float] = {}
     for e in enrolments:
@@ -450,44 +461,7 @@ def course_gradebook_csv(request: HttpRequest, pk: int) -> HttpResponse:
     course = get_object_or_404(Course, pk=pk)
     if not course.is_owner(request.user):
         raise PermissionDenied
-    assignments = list(
-        Assignment.objects.filter(course=course, is_published=True).order_by("title")
-    )
-    enrolments = list(
-        Enrolment.objects.filter(course=course)
-        .select_related("student", "student__profile")
-        .order_by("student__username")
-    )
-    grades = Grade.objects.filter(course=course, assignment__in=assignments).select_related(
-        "student", "assignment"
-    )
-    grade_map: dict[tuple[int, int], Grade] = {(g.student_id, g.assignment_id): g for g in grades}
-
-    resp = HttpResponse(content_type="text/csv; charset=utf-8")
-    resp["Content-Disposition"] = f"attachment; filename=gradebook_course_{course.id}.csv"
-    writer = csv.writer(resp)
-    header = ["username", "S-ID"] + [a.title for a in assignments] + ["course %"]
-    writer.writerow(header)
-    for e in enrolments:
-        sid = getattr(getattr(e.student, "profile", None), "student_number", None)
-        sid_val = sid if sid else f"S{e.student.id:07d}"
-        row = [e.student.username, sid_val]
-        for a in assignments:
-            g = grade_map.get((e.student_id, a.id))
-            if g:
-                ach = (
-                    int(g.achieved_marks)
-                    if float(g.achieved_marks or 0).is_integer()
-                    else g.achieved_marks
-                )
-                mx = int(g.max_marks) if float(g.max_marks or 0).is_integer() else g.max_marks
-                row.append(f"{ach}/{mx}")
-            else:
-                row.append("")
-        pct = compute_course_percentage(course, e.student)
-        row.append(f"{pct:.2f}")
-        writer.writerow(row)
-    return resp
+    return gradebook_csv_response(course)
 
 
 @login_required
@@ -510,9 +484,7 @@ def course_feedback(request: HttpRequest, pk: int) -> HttpResponse:
         messages.error(request, "Please enrol before leaving feedback.")
         return redirect("courses:detail", pk=course.pk)
     if request.method == "POST":
-        existing = (
-            cast(Any, Feedback).objects.filter(course=course, student_id=request.user.id).first()
-        )
+        existing = Feedback.objects.filter(course=course, student_id=request.user.id).first()
         form = FeedbackForm(request.POST, instance=existing)
         if form.is_valid():
             fb = form.save(commit=False)

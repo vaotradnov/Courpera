@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any, cast
-
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -178,7 +176,7 @@ class FeedbackViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         course_id = self.request.query_params.get("course")
-        qs = cast(Any, Feedback).objects.select_related("course", "student")
+        qs = Feedback.objects.select_related("course", "student")
         if course_id:
             qs = qs.filter(course_id=course_id)
         return qs.order_by("-created_at")

@@ -30,4 +30,4 @@ Thanks for contributing to Courpera! This guide keeps quality high and reviews f
 - If models change, include migrations and ensure `manage.py makemigrations --check --dry-run` passes in CI.
 
 ## CI
-- Lint (Ruff), format check, MyPy, dependency audit, tests (fast/slow) with 85% coverage gate.
+- Lint (Ruff), format check, MyPy, dependency audit, tests (fast/slow) with 86% coverage gate.

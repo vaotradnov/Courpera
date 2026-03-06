@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
 from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect
@@ -23,16 +24,21 @@ def upload_for_course(request: HttpRequest, course_id: int) -> HttpResponse:
     if not course.is_owner(request.user):
         raise PermissionDenied
     if request.method == "POST":
-        # Naive per-session upload throttle: max 5 uploads per minute
+        # Per-session throttle (isolates tests/users across logins): 5 uploads/minute
+        if not request.session.session_key:
+            try:
+                request.session.save()
+            except Exception:
+                pass
+        sid = request.session.session_key or f"user-{request.user.id}"
+        key = f"upload_minute_count:{sid}"
         try:
-            ts = request.session.get("upload_ts", [])
-            now = __import__("time").time()
-            ts = [t for t in ts if now - t < 60]
-            if len(ts) >= 5:
-                messages.error(request, "Too many uploads, please wait a minute and try again.")
-                return redirect("courses:detail", pk=course.pk)
+            count = int(cache.get(key) or 0)
         except Exception:
-            ts = []
+            count = 0
+        if count >= 5:
+            messages.error(request, "Too many uploads, please wait a minute and try again.")
+            return redirect("courses:detail", pk=course.pk)
         form = MaterialUploadForm(request.POST, request.FILES)
         if form.is_valid():
             m = form.save(commit=False)
@@ -40,10 +46,8 @@ def upload_for_course(request: HttpRequest, course_id: int) -> HttpResponse:
             m.uploaded_by = request.user
             m.save()
             messages.success(request, "Material uploaded.")
-            # record timestamp
             try:
-                ts.append(now)
-                request.session["upload_ts"] = ts
+                cache.set(key, count + 1, timeout=60)
             except Exception:
                 pass
         else:

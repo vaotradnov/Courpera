@@ -188,6 +188,16 @@ class Grade(models.Model):
             models.Index(fields=["assignment", "student"]),
             models.Index(fields=["course", "student"]),
         ]
+        constraints = [
+            models.CheckConstraint(
+                name="grade_marks_nonnegative",
+                condition=models.Q(achieved_marks__gte=0.0) & models.Q(max_marks__gte=0.0),
+            ),
+            models.CheckConstraint(
+                name="grade_marks_le_max",
+                condition=models.Q(achieved_marks__lte=models.F("max_marks")),
+            ),
+        ]
 
     def __str__(self) -> str:  # pragma: no cover
         return (
