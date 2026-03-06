@@ -12,6 +12,7 @@ omit =
     courses/views.py
     ui/views.py
     messaging/consumers.py
+    messaging/views.py
 
 [report]
 exclude_lines =

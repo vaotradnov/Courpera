@@ -6,7 +6,10 @@ from .views import (
     create_group,
     delete_message,
     edit_message,
+    moderate_member,
+    report_message,
     room_messages,
+    slowmode,
     toggle_reaction,
 )
 
@@ -20,4 +23,11 @@ urlpatterns = [
     path("messages/<int:message_id>/", edit_message, name="edit-message"),
     path("messages/<int:message_id>/delete/", delete_message, name="delete-message"),
     path("messages/<int:message_id>/reactions/", toggle_reaction, name="toggle-reaction"),
+    path("messages/<int:message_id>/report/", report_message, name="report-message"),
+    path(
+        "rooms/<int:room_id>/moderate/<int:user_id>/<str:action>/",
+        moderate_member,
+        name="moderate-member",
+    ),
+    path("rooms/<int:room_id>/slowmode/", slowmode, name="slowmode"),
 ]

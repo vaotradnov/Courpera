@@ -117,14 +117,40 @@
     </div>
   </section>
   <!-- Then Course chat below Syllabus -->
-  <section class="panel" data-chat-course-id="{{ course.id }}">
-    <h3>Course chat</h3>
+  <section class="panel" data-chat-course-id="{{ course.id }}" data-user-id="{{ request.user.id }}">
+    <div class="panel-heading">
+      <h3>Course chat</h3>
+      <span class="action-right">
+        <span id="chat-presence" class="muted" aria-live="polite" title=""></span>
+        {% if owner_view %}
+          <label for="chat-slowmode" class="sr-only">Slow mode</label>
+          <select id="chat-slowmode" class="input" title="Slow mode">
+            <option value="0">Slow mode: Off</option>
+            <option value="5">5s</option>
+            <option value="10">10s</option>
+            <option value="30">30s</option>
+            <option value="60">60s</option>
+          </select>
+        {% endif %}
+      </span>
+    </div>
     <div id="chat-log" class="chat-log"></div>
+    <div id="chat-typing" class="muted" aria-live="polite"></div>
+    <div id="chat-mod" class="muted" aria-live="polite"></div>
+    {% if owner_view %}
+    <select id="modRoster" hidden>
+      {% for e in roster %}
+        <option value="{{ e.student.id }}">{{ e.student.username }}</option>
+      {% endfor %}
+    </select>
+    {% endif %}
     <form id="chat-form">
       <label class="sr-only" for="chat-input">Message</label>
       <input id="chat-input" type="text" maxlength="500" placeholder="Type a message..." class="input input-sm w-80" />
+      <input id="chat-file" type="file" accept="image/png,image/jpeg,application/pdf" />
       <button type="submit" class="btn">Send</button>
     </form>
+    <div id="chat-notice" class="muted mt-2" aria-live="polite"></div>
   </section>
   <!-- Then Materials under Syllabus/Chat -->
   <section class="panel" id="materials">

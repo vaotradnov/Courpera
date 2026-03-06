@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import mimetypes
+from pathlib import Path
+
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 from courses.models import Course
 
@@ -47,6 +52,8 @@ class Room(models.Model):
     )
     title = models.CharField(max_length=200, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
+    slow_mode_seconds = models.PositiveIntegerField(default=0)
+    slow_mode_expires_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         indexes = [
@@ -73,6 +80,9 @@ class RoomMembership(models.Model):
     )
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default=ROLE_MEMBER)
     created_at = models.DateTimeField(auto_now_add=True)
+    muted_until = models.DateTimeField(null=True, blank=True)
+    banned = models.BooleanField(default=False)
+    delay_seconds = models.PositiveIntegerField(default=0)
 
     class Meta:
         unique_together = ("room", "user")
@@ -91,6 +101,9 @@ class Message(models.Model):
     )
     text = models.CharField(max_length=500)
     created_at = models.DateTimeField(auto_now_add=True)
+    # When the message becomes visible to others (for delay/queue)
+    visible_at = models.DateTimeField(default=timezone.now)
+    published_at = models.DateTimeField(null=True, blank=True)
     edited_at = models.DateTimeField(null=True, blank=True)
     deleted_at = models.DateTimeField(null=True, blank=True)
     deleted_by = models.ForeignKey(
@@ -108,6 +121,7 @@ class Message(models.Model):
             models.Index(
                 fields=["room", "parent_message", "created_at"], name="msg_room_parent_created_idx"
             ),
+            models.Index(fields=["room", "visible_at"], name="msg_room_visible_idx"),
         ]
 
     def __str__(self) -> str:  # pragma: no cover
@@ -125,3 +139,76 @@ class Reaction(models.Model):
     class Meta:
         unique_together = ("message", "user", "emoji")
         indexes = [models.Index(fields=["message", "created_at"], name="msg_react_msg_created_idx")]
+
+
+# Chat attachments (images/PDF) with size/type validation
+
+CHAT_ALLOWED_MIME = {"image/png", "image/jpeg", "application/pdf"}
+CHAT_ALLOWED_EXT = {".png", ".jpg", ".jpeg", ".pdf"}
+CHAT_MAX_BYTES = 5 * 1024 * 1024
+
+
+def validate_chat_upload(file) -> None:
+    size = getattr(file, "size", None)
+    if size is not None and size > CHAT_MAX_BYTES:
+        raise ValidationError("File too large (max 5 MB)")
+    ext = Path(getattr(file, "name", "")).suffix.lower()
+    if ext not in CHAT_ALLOWED_EXT:
+        raise ValidationError("Unsupported file type")
+    guessed, _ = mimetypes.guess_type(getattr(file, "name", ""))
+    if guessed and guessed not in CHAT_ALLOWED_MIME:
+        raise ValidationError("Unsupported MIME type")
+
+
+class Attachment(models.Model):
+    message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name="attachments")
+    file = models.FileField(upload_to="chat/", validators=[validate_chat_upload])
+    size_bytes = models.PositiveIntegerField(default=0)
+    mime = models.CharField(max_length=100, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at"]
+        indexes = [
+            models.Index(fields=["message", "created_at"], name="msg_attach_msg_created_idx")
+        ]
+
+    def save(self, *args, **kwargs):
+        try:
+            f = self.file
+            self.size_bytes = getattr(f, "size", self.size_bytes) or 0
+            self.mime = mimetypes.guess_type(getattr(f, "name", ""))[0] or ""
+        except Exception:
+            pass
+        return super().save(*args, **kwargs)
+
+
+class Report(models.Model):
+    STATUS_OPEN = "open"
+    STATUS_RESOLVED = "resolved"
+    STATUS_DISMISSED = "dismissed"
+    STATUS_CHOICES = (
+        (STATUS_OPEN, "Open"),
+        (STATUS_RESOLVED, "Resolved"),
+        (STATUS_DISMISSED, "Dismissed"),
+    )
+
+    message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name="reports")
+    reporter = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="reports"
+    )
+    reason = models.CharField(max_length=200)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=STATUS_OPEN)
+    handled_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reports_handled",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["status", "created_at"], name="msg_report_status_created_idx")
+        ]

@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from django.urls import re_path
+from django.urls import path
 
 from .consumers import CourseChatConsumer, RoomConsumer
 
 websocket_urlpatterns = [
-    re_path(r"^ws/chat/course/(?P<course_id>\d+)/$", CourseChatConsumer.as_asgi()),
-    re_path(r"^ws/chat/room/(?P<room_id>\d+)/$", RoomConsumer.as_asgi()),
+    path("ws/chat/course/<int:course_id>/", CourseChatConsumer.as_asgi()),
+    path("ws/chat/room/<int:room_id>/", RoomConsumer.as_asgi()),
 ]
