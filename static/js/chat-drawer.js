@@ -63,7 +63,7 @@
     container.innerHTML = '';
     var controls = el('div','chat-convos__controls');
     controls.innerHTML = '<label for="dmUser" class="sr-only">Search or start chat</label>'+
-                         '<input id="dmUser" class="input" placeholder="Seach or start chat"/>'+
+                         '<input id="dmUser" class="input" placeholder="Search or start chat"/>'+
                          '<button id="grpToggle" class="btn-secondary" type="button">New group</button>';
     container.appendChild(controls);
     // DM via Enter or Start

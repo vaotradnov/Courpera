@@ -2,6 +2,25 @@
 
 Courpera is a server-rendered e-learning web application built with Django. It provides user accounts (students and teachers), course authoring and enrolment, materials upload, course feedback, status updates, notifications, search, and real-time messaging.
 
+Quickstart
+- Create venv and install:
+  - Windows PowerShell:
+    - `python -m venv .venv`
+    - `.venv\\Scripts\\Activate.ps1`
+    - `pip install -r requirements.txt`
+  - macOS/Linux:
+    - `python3 -m venv .venv`
+    - `source .venv/bin/activate`
+    - `pip install -r requirements.txt`
+- Run dev server:
+  - `python manage.py migrate`
+  - `python manage.py runserver`
+- Verify:
+  - `GET /healthz` → 200 `ok`
+  - `GET /readyz` → JSON with `{"database": true, "redis": ...}` when `REDIS_URL` is set
+  - `GET /metrics` → Prometheus text (counters present)
+  - `GET /api/schema/` and open `/docs` and `/redoc`
+
 Key Features
 - User accounts and roles (students/teachers)
 - Courses and enrolments with role-based access
@@ -43,10 +62,16 @@ CI And Tests
   - `test-fast`: runs `pytest -m "not slow"` with coverage gate 80% and uploads HTML/XML artifacts.
   - `test-slow`: runs only `pytest -m slow` (longer pagination/budget tests).
   - `lint`: runs Ruff (lint/format check) and MyPy (loose type checks) before tests.
+  - Security: Bandit runs via pre-commit and as a standalone step (advisory, medium severity & confidence).
 - Local equivalents:
   - Fast: `pytest -m "not slow" -vv -ra`
   - Slow: `pytest -m slow -vv -ra`
 - Coverage gate is enforced at 86% (see `pytest.ini`).
+
+ Security Scans
+- Bandit (static security):
+  - Pre-commit: `pre-commit run bandit --all-files`
+  - Standalone: `bandit -r . -c bandit.yaml --severity-level medium --confidence-level medium`
 
 Deploy
 - Environment variables:
@@ -60,6 +85,16 @@ Deploy
 - Running:
   - `DJANGO_SETTINGS_MODULE=config.settings.prod gunicorn config.wsgi:application` for WSGI.
   - `daphne -b 0.0.0.0 -p 8000 config.asgi:application` for ASGI (WebSockets support).
+
+Health/Readiness and Metrics
+- Endpoints:
+  - `/healthz`: liveness probe; returns plain `ok` with 200.
+  - `/readyz`: readiness probe; verifies database connectivity. If the `REDIS_URL` env var is set, also attempts a Redis `PING` and includes a `{"redis": true|false}` key. Returns 200 only when the database is reachable and Redis (if configured) is not failing; otherwise returns 503.
+  - `/metrics`: Prometheus text format counters:
+    - `courpera_notifications_created_total`
+    - `courpera_ws_notif_push_total`
+    - `courpera_messages_created_total` (incremented on both WebSocket and HTTP message creation paths)
+    - `courpera_http_responses_total_2xx|3xx|4xx|5xx`
 
 Verification
 - Run: `pytest -m "not ws"` for quick UI smoke; `pytest -m security` for CSP/permissions.

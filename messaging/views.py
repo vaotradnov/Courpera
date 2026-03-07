@@ -12,6 +12,7 @@ from django.http import HttpRequest, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
+from config.metrics import inc as metrics_inc
 from courses.models import Course, Enrolment
 
 from .models import (
@@ -416,6 +417,10 @@ def room_messages(request: HttpRequest, room_id: int) -> JsonResponse:
                 parent_message=parent,
                 visible_at=timezone.now() + timedelta(seconds=delay_secs),
             )
+            try:
+                metrics_inc("courpera_messages_created_total", 1)
+            except Exception:
+                pass
             for f in files:
                 Attachment.objects.create(message=m, file=f)
             return JsonResponse(
@@ -423,6 +428,10 @@ def room_messages(request: HttpRequest, room_id: int) -> JsonResponse:
             )
         else:
             m = Message.objects.create(room=room, sender=user, text=txt, parent_message=parent)
+            try:
+                metrics_inc("courpera_messages_created_total", 1)
+            except Exception:
+                pass
             for f in files:
                 Attachment.objects.create(message=m, file=f)
 

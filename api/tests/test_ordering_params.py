@@ -16,6 +16,8 @@ def test_courses_ordering_param_valid_and_invalid():
     for title in titles:
         Course.objects.create(owner=t, title=title, description="")
     c = Client()
+    # Authenticate to avoid anonymous throttle interference across suite
+    assert c.login(username="cord", password="pw")
     # Valid ordering
     r = c.get("/api/v1/courses/?ordering=-title")
     assert r.status_code == 200

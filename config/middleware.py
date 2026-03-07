@@ -5,6 +5,7 @@ from uuid import uuid4
 from django.utils import timezone
 from django.utils.deprecation import MiddlewareMixin
 
+from .metrics import inc as metrics_inc
 from .obsv import request_id_var, user_id_var
 
 
@@ -100,5 +101,28 @@ class RequestIDMiddleware(MiddlewareMixin):
             if rid:
                 response["X-Request-ID"] = rid
         except Exception:
+            pass
+        return response
+
+
+class ResponseMetricsMiddleware(MiddlewareMixin):
+    """Increment simple HTTP status counters per response.
+
+    Buckets: 2xx / 3xx / 4xx / 5xx
+    """
+
+    def process_response(self, request, response):  # noqa: D401
+        try:
+            code = int(getattr(response, "status_code", 0) or 0)
+            if 200 <= code < 300:
+                metrics_inc("courpera_http_responses_total_2xx", 1)
+            elif 300 <= code < 400:
+                metrics_inc("courpera_http_responses_total_3xx", 1)
+            elif 400 <= code < 500:
+                metrics_inc("courpera_http_responses_total_4xx", 1)
+            elif 500 <= code < 600:
+                metrics_inc("courpera_http_responses_total_5xx", 1)
+        except Exception:
+            # Best-effort only; never interfere with response path
             pass
         return response

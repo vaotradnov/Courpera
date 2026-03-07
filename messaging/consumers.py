@@ -1,21 +1,36 @@
 from __future__ import annotations
 
 import time
-from datetime import timedelta
 
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from django.contrib.auth.models import AnonymousUser, User
-from django.db import transaction
 from django.utils import timezone
 
 from courses.models import Course, Enrolment
 
+from .consumer_helpers import (
+    create_delayed_message as _create_delayed_message_sync,
+)
+from .consumer_helpers import (
+    fetch_and_publish_due as _fetch_and_publish_due_sync,
+)
+from .consumer_helpers import (
+    get_room_slow_mode as _get_room_slow_mode_sync,
+)
+from .consumer_helpers import (
+    mark_published as _mark_published_sync,
+)
+from .consumer_helpers import (
+    presence_add as _presence_add,
+)
+from .consumer_helpers import (
+    presence_remove as _presence_remove,
+)
 from .models import Message, Room, RoomMembership
 from .services import notify_message_by_id
 
-# In-memory presence and rate data (per-process; fine for dev/tests)
-_presence: dict[int, set[int]] = {}
+# In-memory rate limiter data (per-process; fine for dev/tests)
 _last_sent: dict[tuple[int, int], float] = {}
 
 
@@ -239,10 +254,10 @@ class RoomConsumer(AsyncJsonWebsocketConsumer):
         try:
             uid = getattr(self.scope.get("user"), "id", None)
             if uid:
-                _presence.setdefault(self.room.id, set()).add(uid)
-                if len(_presence[self.room.id]) > 1:
+                ids = _presence_add(self.room.id, uid)
+                if len(ids) > 1:
                     try:
-                        users = await _usernames_for_ids(list(_presence[self.room.id]))
+                        users = await _usernames_for_ids(list(ids))
                     except Exception:
                         users = []
                     await self.channel_layer.group_send(
@@ -251,7 +266,7 @@ class RoomConsumer(AsyncJsonWebsocketConsumer):
                             "type": "chat_message",
                             "payload": {
                                 "type": "presence.state",
-                                "count": len(_presence[self.room.id]),
+                                "count": len(ids),
                                 "users": users,
                                 "origin": self.channel_name,
                             },
@@ -398,11 +413,11 @@ class RoomConsumer(AsyncJsonWebsocketConsumer):
         # Presence leave
         try:
             uid = getattr(self.scope.get("user"), "id", None)
-            if uid and self.room and self.room.id in _presence and uid in _presence[self.room.id]:
-                _presence[self.room.id].remove(uid)
-                if len(_presence[self.room.id]) > 0:
+            if uid and self.room:
+                ids = _presence_remove(self.room.id, uid)
+                if len(ids) > 0:
                     try:
-                        users = await _usernames_for_ids(list(_presence[self.room.id]))
+                        users = await _usernames_for_ids(list(ids))
                     except Exception:
                         users = []
                     await self.channel_layer.group_send(
@@ -411,7 +426,7 @@ class RoomConsumer(AsyncJsonWebsocketConsumer):
                             "type": "chat_message",
                             "payload": {
                                 "type": "presence.state",
-                                "count": len(_presence[self.room.id]),
+                                "count": len(ids),
                                 "users": users,
                                 "origin": self.channel_name,
                             },
@@ -440,18 +455,7 @@ def _usernames_for_ids(ids: list[int]) -> list[str]:
 @database_sync_to_async
 def _get_room_slow_mode(room_id: int) -> int:
     try:
-        from django.utils import timezone as _tz
-
-        from .models import Room  # local import to avoid cycles
-
-        r = Room.objects.only("slow_mode_seconds", "slow_mode_expires_at").get(pk=room_id)
-        secs = int(r.slow_mode_seconds or 0)
-        if secs and r.slow_mode_expires_at and _tz.now() >= r.slow_mode_expires_at:
-            r.slow_mode_seconds = 0
-            r.slow_mode_expires_at = None
-            r.save(update_fields=["slow_mode_seconds", "slow_mode_expires_at"])
-            return 0
-        return secs
+        return _get_room_slow_mode_sync(room_id)
     except Exception:
         return 0
 
@@ -460,62 +464,17 @@ def _get_room_slow_mode(room_id: int) -> int:
 def _create_delayed_message(
     room_id: int, user_id: int, text: str, parent_id: int | None, delay_secs: int
 ) -> int:
-    from .models import Message
-
-    if len(text) > 500:
-        text = text[:500]
-    vis = timezone.now() + timedelta(seconds=max(1, int(delay_secs)))
-    m = Message.objects.create(
-        room_id=room_id, sender_id=user_id, text=text, parent_message_id=parent_id, visible_at=vis
-    )
-    return m.id
+    return _create_delayed_message_sync(room_id, user_id, text, parent_id, delay_secs)
 
 
 @database_sync_to_async
 def _fetch_and_publish_due(room_id: int, limit: int = 20) -> list[dict]:
-    from .models import Message
-
-    now = timezone.now()
-    with transaction.atomic():
-        ids = list(
-            Message.objects.select_for_update(skip_locked=True)
-            .filter(room_id=room_id, published_at__isnull=True, visible_at__lte=now)
-            .order_by("visible_at", "id")
-            .values_list("id", flat=True)[:limit]
-        )
-        if not ids:
-            return []
-        Message.objects.filter(id__in=ids, published_at__isnull=True).update(published_at=now)
-        rows = (
-            Message.objects.filter(id__in=ids).select_related("sender").order_by("visible_at", "id")
-        )
-        out: list[dict] = []
-        for m in rows:
-            # Create in-app notifications for matured messages
-            try:
-                notify_message_by_id(m.id)
-            except Exception:
-                pass
-            out.append(
-                {
-                    "type": "message.new",
-                    "id": m.id,
-                    "sender": getattr(m.sender, "username", ""),
-                    "message": m.text,
-                    "created_at": m.created_at.isoformat(),
-                    "parent_id": m.parent_message_id,
-                }
-            )
-        return out
+    return _fetch_and_publish_due_sync(room_id, limit)
 
 
 @database_sync_to_async
 def _mark_published(message_id: int) -> None:
-    from .models import Message
-
-    Message.objects.filter(id=message_id, published_at__isnull=True).update(
-        published_at=timezone.now()
-    )
+    return _mark_published_sync(message_id)
 
 
 @database_sync_to_async

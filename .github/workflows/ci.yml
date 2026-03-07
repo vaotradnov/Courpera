@@ -32,7 +32,7 @@ jobs:
       - name: Install tools
         run: |
           python -m pip install --upgrade pip
-          pip install ruff mypy django-stubs djangorestframework-stubs
+          pip install ruff mypy bandit django-stubs djangorestframework-stubs
       - name: Ruff check
         working-directory: "Second Half/Project/Courpera"
         run: |
@@ -43,6 +43,10 @@ jobs:
         run: |
           python -m pip install pre-commit
           pre-commit run --all-files --show-diff-on-failure
+      - name: Bandit (standalone, fail on findings)
+        working-directory: "Second Half/Project/Courpera"
+        run: |
+          bandit -r . -c bandit.yaml --severity-level medium --confidence-level medium
       - name: Mypy type check (loose)
         working-directory: "Second Half/Project/Courpera"
         run: |

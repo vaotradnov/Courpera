@@ -1,0 +1,10 @@
+exclude_dirs:
+  - tests
+  - migrations
+  - .venv
+  - htmlcov
+  - static
+  - templates
+skips: []
+severity: MEDIUM
+confidence: MEDIUM

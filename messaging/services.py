@@ -143,4 +143,8 @@ def notify_message_by_id(message_id: int) -> int:
         )
         .get(pk=message_id)
     )
+    try:
+        metrics_inc("courpera_messages_created_total", 1)
+    except Exception:
+        pass
     return create_chat_notifications_for_message(m)
