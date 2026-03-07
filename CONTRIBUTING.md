@@ -11,10 +11,10 @@ Thanks for contributing to Courpera! This guide keeps quality high and reviews f
 ## Local Workflow
 1. Create and activate a virtualenv.
 2. Install deps: `pip install -r requirements.txt`.
-3. Run hooks: `pre-commit install`.
+3. Run hooks: `pre-commit install` (then `pre-commit run --all-files` to run lint, types, security, and tests locally).
 4. Lint/format: `ruff check . && ruff format --check .`.
 5. Types: `mypy --config-file mypy.ini .`.
-6. Tests: `pytest -m "not slow"` (and `pytest -m slow` when relevant).
+6. Tests: `pytest -m "not slow"` (and `pytest -m slow` when relevant). Full suite runs via `pre-commit run pytest --all-files`.
 
 ## Comments & Docstrings
 - Keep module/class/function docstrings to a one‑line summary where possible.
@@ -30,4 +30,4 @@ Thanks for contributing to Courpera! This guide keeps quality high and reviews f
 - If models change, include migrations and ensure `manage.py makemigrations --check --dry-run` passes in CI.
 
 ## CI
-- Lint (Ruff), format check, MyPy, dependency audit, tests (fast/slow) with 86% coverage gate.
+- Lint (Ruff), format check, MyPy, dependency audit, tests (fast/slow) with 90% coverage gate.

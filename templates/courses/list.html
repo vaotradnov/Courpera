@@ -48,13 +48,13 @@
       </div>
     {% endif %}
     <p class="muted">Results: {{ total }}</p>
-    {% if request.user.is_authenticated and role == 'teacher' %}
+    {% if request.user.is_authenticated and request.user.profile.role == 'teacher' %}
       <p><a class="btn" href="/courses/create/">Create a course</a></p>
     {% endif %}
     <div class="card-grid">
       {% for c in courses %}
       <article class="card">
-        {% if request.user.is_authenticated and role == 'student' and c.id in enrolled_ids %}
+        {% if request.user.is_authenticated and request.user.profile.role == 'student' and c.id in enrolled_ids %}
           <span class="badge card-status">Enrolled</span>
         {% endif %}
         {% if c.thumbnail %}
@@ -70,7 +70,7 @@
         </div>
         <div class="actions">
           <a class="btn btn-secondary" href="/courses/{{ c.id }}/">View</a>
-          {% if request.user.is_authenticated and role == 'student' %}
+          {% if request.user.is_authenticated and request.user.profile.role == 'student' %}
             {% if c.id in enrolled_ids %}
               <form method="post" action="/courses/{{ c.id }}/unenrol/" class="inline">
                 {% csrf_token %}

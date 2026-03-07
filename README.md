@@ -66,7 +66,7 @@ CI And Tests
 - Local equivalents:
   - Fast: `pytest -m "not slow" -vv -ra`
   - Slow: `pytest -m slow -vv -ra`
-- Coverage gate is enforced at 86% (see `pytest.ini`).
+  - Coverage gate is enforced at 90% (see `pytest.ini`).
 
  Security Scans
 - Bandit (static security):
@@ -105,7 +105,10 @@ GitHub Actions Badges (optional)
   - Fast job badge: `![CI (fast)](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)`
   - Slow job badge: same workflow badge (shows overall status). If you need per-job badges, use a matrix/summary action or separate workflows.
 Developer Tooling
-- Pre-commit: install hooks with `pre-commit install` to run Ruff/format/MyPy on changed files.
+- Pre-commit:
+  - Install hooks: `pre-commit install`
+  - Full run (lint, types, security, tests): `pre-commit run --all-files`
+  - Only tests via pre-commit: `pre-commit run pytest --all-files`
 - Ruff: `ruff check . && ruff format --check .` (use `--fix` to apply safe fixes).
 - MyPy: `mypy --config-file mypy.ini .` (baseline: ignore missing imports; tighten over time).
-- Security: consider running `pip-audit` or `safety check` regularly; Bandit (narrow ruleset) can be added if desired.
+- Security: consider running `pip-audit` or `safety check` regularly; Bandit runs via pre-commit and CI.

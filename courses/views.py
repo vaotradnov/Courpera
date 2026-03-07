@@ -316,8 +316,15 @@ def course_syllabus_edit(request: HttpRequest, pk: int) -> HttpResponse:
 def course_enrol(request: HttpRequest, pk: int) -> HttpResponse:
     """Enrol the current student into a course (idempotent)."""
     course = get_object_or_404(Course, pk=pk)
+    # Extra defense-in-depth: deny if not a student role
+    if getattr(getattr(request.user, "profile", None), "role", None) != Role.STUDENT:
+        raise PermissionDenied
     if request.method == "POST":
-        _, created = Enrolment.objects.get_or_create(course=course, student=request.user)
+        try:
+            _, created = Enrolment.objects.get_or_create(course=course, student=request.user)
+        except Exception:
+            # Any validation issues (e.g., non-student) map to forbidden here
+            raise PermissionDenied
         if created:
             messages.success(request, "Enrolled in course.")
         return redirect("courses:detail", pk=course.pk)

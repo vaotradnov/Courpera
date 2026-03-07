@@ -9,7 +9,7 @@ repos:
     rev: 1.7.9
     hooks:
       - id: bandit
-        name: bandit (security)
+        name: bandit
         args:
           [
             "-r",
@@ -52,6 +52,7 @@ repos:
     rev: v1.4.0
     hooks:
       - id: detect-secrets
+        name: detect secrets
         args: ["--baseline", ".secrets.baseline"]
         exclude: |
           (?x)^(
@@ -60,3 +61,31 @@ repos:
             static/.*|
             templates/.*
           )$
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: python scripts/run_pytest_quiet.py
+        language: python
+        additional_dependencies:
+          [
+            "pytest==8.4.2",
+            "pytest-django>=4,<5",
+            "pytest-asyncio>=0.23,<0.24",
+            "pytest-html>=4,<5",
+            "pytest-randomly>=3.16,<4",
+            "pytest-xdist>=3.8,<4",
+            "Django==5.1.15",
+            "djangorestframework==3.15.2",
+            "django-filter==24.3",
+            "drf-spectacular==0.27.2",
+            "drf-spectacular-sidecar>=2024.7.1,<2025.0",
+            "channels>=4.1,<5.0",
+            "daphne>=4.1,<5.0",
+            "redis>=5,<6",
+            "freezegun>=1.5,<2",
+            "Pillow>=10,<11",
+            "argon2-cffi>=23.1.0",
+          ]
+        pass_filenames: false
+        stages: [pre-commit]

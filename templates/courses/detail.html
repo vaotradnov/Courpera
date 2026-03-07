@@ -30,12 +30,12 @@
     <p class="muted">Teacher: {{ course.owner.username }}</p>
     <div class="hero-actions">
       {% if owner_view %}
-      {% elif is_enrolled %}
+      {% elif is_enrolled and request.user.is_authenticated and request.user.profile.role == 'student' %}
         <form method="post" action="/courses/{{ course.id }}/unenrol/" class="inline">
           {% csrf_token %}
           <button type="submit" class="btn">Unenrol</button>
         </form>
-      {% elif not limited_view %}
+      {% elif limited_view and request.user.is_authenticated and request.user.profile.role == 'student' %}
         <form method="post" action="/courses/{{ course.id }}/enrol/" class="inline">
           {% csrf_token %}
           <button type="submit" class="btn">Enrol for free</button>

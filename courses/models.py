@@ -12,7 +12,10 @@ from typing import Union
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AbstractUser, AnonymousUser
+from django.core.exceptions import ValidationError
 from django.db import models
+
+from accounts.models import Role
 
 UserModel = get_user_model()
 UserLike = Union[AbstractUser, AnonymousUser]
@@ -82,3 +85,15 @@ class Enrolment(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"{self.student_id}->{self.course_id}"
+
+    def clean(self):  # type: ignore[override]
+        # Ensure only student-role users can be enrolled
+        role = getattr(getattr(self.student, "profile", None), "role", None)
+        if role != Role.STUDENT:
+            raise ValidationError({"student": "Only students can be enrolled in courses."})
+
+    def save(self, *args, **kwargs):  # type: ignore[override]
+        # Validate invariants (role) before saving, but defer unique checks to DB
+        # so that duplicate enrolments raise IntegrityError as tests expect.
+        self.full_clean(validate_unique=False)
+        return super().save(*args, **kwargs)
