@@ -25,11 +25,13 @@ class Notification(models.Model):
     TYPE_MATERIAL = "material"
     TYPE_GRADE = "grade"
     TYPE_QNA = "qna"
+    TYPE_CHAT = "chat"
     TYPE_CHOICES = (
         (TYPE_ENROLMENT, "Enrolment"),
         (TYPE_MATERIAL, "Material"),
         (TYPE_GRADE, "Grade"),
         (TYPE_QNA, "Q&A"),
+        (TYPE_CHAT, "Chat"),
     )
 
     user = models.ForeignKey(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.http import HttpRequest, HttpResponse, JsonResponse
@@ -30,9 +31,9 @@ def post_status(request: HttpRequest) -> HttpResponse:
 @login_required
 def notifications_recent(request: HttpRequest) -> JsonResponse:
     """Return recent notifications and unread count for the current user."""
-    limit = 10
+    limit = getattr(settings, "NOTIFICATIONS_POPUP_COUNT", 10)
     try:
-        limit = int(getattr(request, "GET", {}).get("limit", 10))
+        limit = int(getattr(request, "GET", {}).get("limit", limit))
     except Exception:
         limit = 10
     from typing import cast

@@ -69,6 +69,7 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "config.middleware.ContentSecurityPolicyMiddleware",
     "config.middleware.SecurityHeadersMiddleware",
+    "config.middleware.RequestIDMiddleware",
     # WhiteNoise will be enabled in production; keep ordering stable now
     # "whitenoise.middleware.WhiteNoiseMiddleware",  # enabled in prod.py
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -172,7 +173,7 @@ SPECTACULAR_SETTINGS = {
 }
 
 
-# Channels — configured later; keep a placeholder for local fallback
+# Channels – configured later; keep a placeholder for local fallback
 REDIS_URL = os.environ.get("REDIS_URL", "")
 if REDIS_URL:
     CHANNEL_LAYERS = {
@@ -183,6 +184,21 @@ if REDIS_URL:
     }
 else:
     CHANNEL_LAYERS = {"default": {"BACKEND": "channels.layers.InMemoryChannelLayer"}}
+
+
+# Notifications & Observability flags
+# In-app chat notifications are on by default for local/dev
+def _env_bool(name: str, default: bool) -> bool:  # type: ignore[override]
+    val = os.environ.get(name)
+    if val is None:
+        return default
+    return str(val).strip().lower() in {"1", "true", "yes", "on"}
+
+
+NOTIFICATIONS_IN_APP_ENABLED = _env_bool("NOTIFICATIONS_IN_APP_ENABLED", True)
+NOTIFICATIONS_EMAIL_ENABLED = _env_bool("NOTIFICATIONS_EMAIL_ENABLED", False)
+NOTIFICATIONS_DIGEST_ENABLED = _env_bool("NOTIFICATIONS_DIGEST_ENABLED", False)
+NOTIFICATIONS_POPUP_COUNT = int(os.environ.get("NOTIFICATIONS_POPUP_COUNT", "10") or 10)
 
 # Authentication redirects (used by Django auth views)
 LOGIN_URL = "/accounts/login/"
@@ -228,3 +244,28 @@ except Exception:
     pass
 else:
     INSTALLED_APPS.append("channels")
+
+# Logging: structured-ish line format including request/user IDs
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "filters": {
+        "request_context": {"()": "config.obsv.RequestContextFilter"},
+    },
+    "formatters": {
+        "kv": {
+            "format": 'ts=%(asctime)s level=%(levelname)s logger=%(name)s request_id=%(request_id)s user_id=%(user_id)s msg="%(message)s"',
+        }
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "filters": ["request_context"],
+            "formatter": "kv",
+        }
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
+    },
+}

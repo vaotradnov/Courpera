@@ -23,6 +23,7 @@ from .models import (
     RoomMembership,
     validate_chat_upload,
 )
+from .services import create_chat_notifications_for_message
 
 
 def _is_owner(user: User, course: Course) -> bool:
@@ -172,6 +173,11 @@ def room_messages(request: HttpRequest, room_id: int) -> JsonResponse:
             # Mark as published and broadcast immediate
             m.published_at = timezone.now()
             m.save(update_fields=["published_at"])
+            # Create in-app notifications (best-effort; ignore errors)
+            try:
+                create_chat_notifications_for_message(m)
+            except Exception:
+                pass
             layer = get_channel_layer()
             atts = [
                 {"id": a.id, "url": a.file.url, "mime": a.mime, "size": a.size_bytes}

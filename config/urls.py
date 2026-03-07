@@ -10,6 +10,9 @@ from django.contrib import admin
 from django.http import HttpResponse
 from django.urls import include, path
 
+from config.health import healthz, readyz
+from config.metrics import metrics
+
 
 def _favicon(request):  # inline SVG favicon to avoid 404s in tests/dev
     svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><rect width="16" height="16" fill="#0056D2"/></svg>'
@@ -18,6 +21,9 @@ def _favicon(request):  # inline SVG favicon to avoid 404s in tests/dev
 
 urlpatterns = [
     path("favicon.ico", _favicon),
+    path("healthz", healthz),
+    path("readyz", readyz),
+    path("metrics", metrics),
     path("admin/", admin.site.urls),
     path("accounts/", include("accounts.urls")),
     path("courses/", include("courses.urls")),

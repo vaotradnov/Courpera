@@ -12,6 +12,7 @@ from django.utils import timezone
 from courses.models import Course, Enrolment
 
 from .models import Message, Room, RoomMembership
+from .services import notify_message_by_id
 
 # In-memory presence and rate data (per-process; fine for dev/tests)
 _presence: dict[int, set[int]] = {}
@@ -150,6 +151,11 @@ class CourseChatConsumer(AsyncJsonWebsocketConsumer):
         )
         try:
             await _mark_published(m.id)
+        except Exception:
+            pass
+        # Create in-app notifications (best-effort)
+        try:
+            await _notify_message(m.id)
         except Exception:
             pass
         payload = {
@@ -348,6 +354,11 @@ class RoomConsumer(AsyncJsonWebsocketConsumer):
             await _mark_published(m.id)
         except Exception:
             pass
+        # Create in-app notifications (best-effort)
+        try:
+            await _notify_message(m.id)
+        except Exception:
+            pass
         created_dt = getattr(m, "created_at", None)
         payload = {
             "type": "message.new",
@@ -480,6 +491,11 @@ def _fetch_and_publish_due(room_id: int, limit: int = 20) -> list[dict]:
         )
         out: list[dict] = []
         for m in rows:
+            # Create in-app notifications for matured messages
+            try:
+                notify_message_by_id(m.id)
+            except Exception:
+                pass
             out.append(
                 {
                     "type": "message.new",
@@ -500,3 +516,39 @@ def _mark_published(message_id: int) -> None:
     Message.objects.filter(id=message_id, published_at__isnull=True).update(
         published_at=timezone.now()
     )
+
+
+@database_sync_to_async
+def _notify_message(message_id: int) -> int:
+    try:
+        return notify_message_by_id(message_id)
+    except Exception:
+        return 0
+
+
+class NotificationConsumer(AsyncJsonWebsocketConsumer):
+    async def connect(self):
+        user = self.scope.get("user")
+        if not user or isinstance(user, AnonymousUser):
+            await self.close(code=4001)
+            return
+        self.user_id = getattr(user, "id", None)
+        if not self.user_id:
+            await self.close(code=4001)
+            return
+        self.group = f"user_{self.user_id}_notifications"
+        await self.channel_layer.group_add(self.group, self.channel_name)
+        await self.accept()
+
+    async def receive_json(self, content, **kwargs):  # no-op
+        return
+
+    async def notif_message(self, event):
+        payload = event.get("payload", {})
+        await self.send_json(payload)
+
+    async def disconnect(self, code):
+        try:
+            await self.channel_layer.group_discard(self.group, self.channel_name)
+        except Exception:
+            pass

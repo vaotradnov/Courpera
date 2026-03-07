@@ -25,11 +25,13 @@ django_asgi_app = get_asgi_application()
 websocket_urlpatterns = []  # type: ignore[var-annotated]
 try:
     from messaging.consumers import CourseChatConsumer as _CCC
+    from messaging.consumers import NotificationConsumer as _NC
     from messaging.consumers import RoomConsumer as _RC
 
     websocket_urlpatterns = [
         path("ws/chat/course/<int:course_id>/", _CCC.as_asgi()),
         path("ws/chat/room/<int:room_id>/", _RC.as_asgi()),
+        path("ws/notify/", _NC.as_asgi()),
     ]
 except Exception:  # pragma: no cover
     # If consumers cannot import during tooling, leave patterns empty.
@@ -39,11 +41,13 @@ except Exception:  # pragma: no cover
 # Deterministic dispatcher used by the ASGI app
 _re_course = re.compile(r"^/ws/chat/course/(?P<course_id>\d+)/$")
 _re_room = re.compile(r"^/ws/chat/room/(?P<room_id>\d+)/$")
+_re_notify = re.compile(r"^/ws/notify/$")
 
 
 async def _chat_dispatch(scope: dict[str, Any], receive, send):  # pragma: no cover
     # Import inside function to avoid import-order issues during collection.
     from messaging.consumers import CourseChatConsumer as _CCC
+    from messaging.consumers import NotificationConsumer as _NC
     from messaging.consumers import RoomConsumer as _RC
 
     path = scope.get("path", "") or ""
@@ -57,6 +61,9 @@ async def _chat_dispatch(scope: dict[str, Any], receive, send):  # pragma: no co
         kwargs = {"room_id": int(m.group("room_id"))}
         app = _RC.as_asgi()
         return await app(dict(scope, url_route={"args": (), "kwargs": kwargs}), receive, send)
+    if _re_notify.match(path):
+        app = _NC.as_asgi()
+        return await app(dict(scope, url_route={"args": (), "kwargs": {}}), receive, send)
     await send({"type": "websocket.close", "code": 4004})
 
 

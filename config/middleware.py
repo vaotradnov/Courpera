@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from uuid import uuid4
+
 from django.utils import timezone
 from django.utils.deprecation import MiddlewareMixin
+
+from .obsv import request_id_var, user_id_var
 
 
 class ContentSecurityPolicyMiddleware(MiddlewareMixin):
@@ -69,4 +73,32 @@ class SecurityHeadersMiddleware(MiddlewareMixin):
         # Minimal, privacy-friendly permissions policy
         perm = "geolocation=(), microphone=(), camera=(), payment=(), usb=(), fullscreen=(self)"
         response.setdefault("Permissions-Policy", perm)
+        return response
+
+
+class RequestIDMiddleware(MiddlewareMixin):
+    """Assign a request ID and expose minimal request context for logging.
+
+    - Sets `X-Request-ID` header on responses.
+    - Stores request/user IDs in contextvars used by logging filter.
+    """
+
+    def process_request(self, request):  # noqa: D401
+        try:
+            rid = request.META.get("HTTP_X_REQUEST_ID") or str(uuid4())
+            request_id_var.set(rid)
+            user = getattr(request, "user", None)
+            uid = getattr(user, "id", None) if getattr(user, "is_authenticated", False) else None
+            user_id_var.set(uid)
+            request.META["X_REQUEST_ID"] = rid
+        except Exception:
+            pass
+
+    def process_response(self, request, response):  # noqa: D401
+        try:
+            rid = request.META.get("X_REQUEST_ID") or request_id_var.get()
+            if rid:
+                response["X-Request-ID"] = rid
+        except Exception:
+            pass
         return response

@@ -7,6 +7,35 @@
     var list = qs('notifList');
     var badge = qs('notifBadge');
     if(!btn || !panel) return;
+    // Live badge updates over WebSocket (best-effort)
+    (function startNotifWS(){
+      try {
+        var scheme = (window.location.protocol === 'https:') ? 'wss' : 'ws';
+        var url = scheme + '://' + window.location.host + '/ws/notify/';
+        var ws = new WebSocket(url);
+        ws.onmessage = function(ev){
+          try {
+            var data = JSON.parse(ev.data || '{}');
+            var t = data && data.type;
+            if (t === 'notif.unread' && typeof data.count === 'number'){
+              badge.textContent = data.count ? '(' + data.count + ')' : '';
+              return;
+            }
+            if (t === 'notif.bump'){
+              var cur = 0;
+              try {
+                var txt = (badge.textContent || '').trim();
+                if (txt && txt[0] === '(') { cur = parseInt(txt.replace(/[^0-9]/g,'')) || 0; }
+              } catch(_){ cur = 0; }
+              var next = cur + (parseInt(data.delta,10) || 1);
+              badge.textContent = '(' + next + ')';
+              return;
+            }
+          } catch(_){ /* ignore malformed */ }
+        };
+        ws.onerror = function(){ /* no-op */ };
+      } catch(_){ /* ignore if WS unavailable */ }
+    })();
     function fetchRecent(){
       fetch('/activity/notifications/recent/')
         .then(function(r){ return r.ok ? r.json() : {unread:0,results:[]}; })
@@ -23,6 +52,14 @@
           }
         })
         .catch(function(){});
+    }
+    // CSRF helper (local to notifications)
+    function getCookie(name){
+      try {
+        var value = '; ' + document.cookie; var parts = value.split('; ' + name + '=');
+        if (parts.length === 2) return parts.pop().split(';').shift();
+      } catch(_){ }
+      return '';
     }
     btn.addEventListener('click', function(ev){
       try { ev.preventDefault(); ev.stopPropagation(); } catch(e) {}
@@ -50,6 +87,23 @@
     panel.addEventListener('click', function(ev){
       try { ev.stopPropagation(); } catch(e) {}
     });
+    // Intercept "Mark all read" to stay on the same page
+    try {
+      var markForm = panel.querySelector('form[action="/activity/notifications/mark-all-read/"]');
+      if (markForm){
+        markForm.addEventListener('submit', function(ev){
+          try { ev.preventDefault(); ev.stopPropagation(); } catch(_){ }
+          fetch('/activity/notifications/mark-all-read/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') || '' }
+          }).then(function(){
+            // Clear badge and refresh list
+            try { badge.textContent = ''; } catch(_){ }
+            fetchRecent();
+          }).catch(function(){ /* ignore */ });
+        });
+      }
+    } catch(_){ }
     document.addEventListener('click', function(e){
       // Close if click is outside both the panel and the button (including its children)
       var clickedInsidePanel = panel.contains(e.target);
