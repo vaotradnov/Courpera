@@ -83,11 +83,14 @@ class RoomMembership(models.Model):
     muted_until = models.DateTimeField(null=True, blank=True)
     banned = models.BooleanField(default=False)
     delay_seconds = models.PositiveIntegerField(default=0)
+    # 17.05: track per-user unread boundary
+    last_read_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         unique_together = ("room", "user")
         indexes = [
             models.Index(fields=["user", "created_at"], name="msg_mem_user_created_idx"),
+            models.Index(fields=["room", "user"], name="msg_mem_room_user_idx"),
         ]
 
 

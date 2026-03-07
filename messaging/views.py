@@ -26,6 +26,262 @@ from .models import (
 from .services import create_chat_notifications_for_message
 
 
+@login_required
+def rooms_mine(request: HttpRequest) -> JsonResponse:
+    """Return conversations for the current user with last message and unread count.
+
+    Includes DM/group memberships and course rooms for courses the user owns or is enrolled in.
+    Ensures a membership exists for course rooms to track last_read_at.
+    """
+    user = cast(User, request.user)
+    now = timezone.now()
+    # Collect DM and group rooms via membership
+    mem_qs = (
+        RoomMembership.objects.select_related("room", "room__course")
+        .filter(user_id=user.id)
+        .order_by("-created_at")
+    )
+    rooms = {m.room_id: m for m in mem_qs}
+    # Include course rooms where user is owner or enrolled
+    course_ids = set(Course.objects.filter(owner_id=user.id).values_list("id", flat=True))
+    enrolled_ids = set(
+        Enrolment.objects.filter(student_id=user.id).values_list("course_id", flat=True)
+    )
+    for cid in sorted(course_ids | enrolled_ids):
+        room = Room.objects.filter(kind=Room.KIND_COURSE, course_id=cid).first()
+        if room is None:
+            room = Room.objects.create(kind=Room.KIND_COURSE, course_id=cid, title="")
+        mem = rooms.get(room.id)
+        if mem is None:
+            role = RoomMembership.ROLE_OWNER if cid in course_ids else RoomMembership.ROLE_MEMBER
+            mem, _ = RoomMembership.objects.get_or_create(
+                room=room, user=user, defaults={"role": role}
+            )
+            rooms[room.id] = mem
+    # Build response
+    out = []
+    for rid, mem in rooms.items():
+        r = mem.room
+        # Title logic
+        if r.kind == Room.KIND_DM:
+            # Show the other user's username
+            others = (
+                RoomMembership.objects.filter(room_id=r.id)
+                .exclude(user_id=user.id)
+                .select_related("user")
+            )
+            title = getattr(next(iter(others), None), "user", None)
+            title = getattr(title, "username", "Direct message")
+        elif r.kind == Room.KIND_GROUP:
+            title = r.title or "Group"
+        else:
+            title = getattr(r.course, "title", None) or "Course chat"
+        last = (
+            Message.objects.filter(room_id=r.id, visible_at__lte=now)
+            .select_related("sender")
+            .order_by("-created_at", "-id")
+            .first()
+        )
+        last_obj = (
+            {
+                "text": last.text,
+                "created_at": last.created_at.isoformat(),
+                "sender": getattr(last.sender, "username", ""),
+            }
+            if last
+            else None
+        )
+        # Unread: created_at > last_read_at and not sent by me
+        lr = mem.last_read_at
+        unread_qs = Message.objects.filter(room_id=r.id, visible_at__lte=now).exclude(
+            sender_id=user.id
+        )
+        if lr is not None:
+            unread_qs = unread_qs.filter(created_at__gt=lr)
+        unread = unread_qs.count()
+        out.append(
+            {
+                "id": r.id,
+                "kind": r.kind,
+                "title": title,
+                "unread": unread,
+                "last_message": last_obj,
+            }
+        )
+
+    # Sort by last_message created_at desc (None last)
+    def _key(it):
+        lm = it.get("last_message") or {}
+        return lm.get("created_at") or ""
+
+    out.sort(key=_key, reverse=True)
+    return JsonResponse({"results": out})
+
+
+@login_required
+def room_read(request: HttpRequest, room_id: int) -> JsonResponse:
+    """Mark a conversation as read for the current user."""
+    if request.method not in {"POST", "PATCH"}:
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+    user = cast(User, request.user)
+    room = get_object_or_404(Room.objects.select_related("course"), pk=room_id)
+    # Ensure access/membership
+    mem = RoomMembership.objects.filter(room=room, user_id=user.id).first()
+    if room.kind == Room.KIND_COURSE:
+        if not mem:
+            # Permit owner/enrolled and create membership for tracking
+            course = room.course
+            if not course:
+                return JsonResponse({"detail": "Not permitted"}, status=403)
+            if not (
+                course.owner_id == user.id
+                or Enrolment.objects.filter(course=course, student_id=user.id).exists()
+            ):
+                return JsonResponse({"detail": "Not permitted"}, status=403)
+            role = (
+                RoomMembership.ROLE_OWNER
+                if course.owner_id == user.id
+                else RoomMembership.ROLE_MEMBER
+            )
+            mem = RoomMembership.objects.create(room=room, user=user, role=role)
+    else:
+        if not mem:
+            return JsonResponse({"detail": "Not permitted"}, status=403)
+    mem.last_read_at = timezone.now()
+    mem.save(update_fields=["last_read_at"])
+    return JsonResponse({"unread": 0, "last_read_at": mem.last_read_at.isoformat()})
+
+
+@login_required
+def room_members(request: HttpRequest, room_id: int) -> JsonResponse:
+    """Return members of a room (id, username)."""
+    room = get_object_or_404(Room.objects.select_related("course"), pk=room_id)
+    user = cast(User, request.user)
+    # Access: member; or course owner/enrolled for course rooms
+    mem = RoomMembership.objects.filter(room=room, user_id=user.id).first()
+    if room.kind == Room.KIND_COURSE and not mem:
+        course = room.course
+        if not course or not (
+            course.owner_id == user.id
+            or Enrolment.objects.filter(course=course, student_id=user.id).exists()
+        ):
+            return JsonResponse({"detail": "Not permitted"}, status=403)
+    elif not mem:
+        return JsonResponse({"detail": "Not permitted"}, status=403)
+    members = RoomMembership.objects.filter(room=room).select_related("user").order_by("created_at")
+    out = [{"id": m.user_id, "username": getattr(m.user, "username", "")} for m in members]
+    self_lr = None
+    try:
+        self_lr = (
+            RoomMembership.objects.filter(room=room, user_id=user.id)
+            .values_list("last_read_at", flat=True)
+            .first()
+        )
+    except Exception:
+        self_lr = None
+    return JsonResponse(
+        {
+            "results": out,
+            "kind": room.kind,
+            "title": room.title or "",
+            "self_last_read_at": self_lr.isoformat() if self_lr else None,
+        }
+    )
+
+
+def _can_manage_room(user: User, room: Room) -> bool:
+    if room.kind == Room.KIND_COURSE:
+        return bool(room.course and room.course.owner_id == user.id)
+    # DM/Group: any member
+    return RoomMembership.objects.filter(room=room, user_id=user.id).exists()
+
+
+@login_required
+def room_rename(request: HttpRequest, room_id: int) -> JsonResponse:
+    if request.method not in {"POST", "PATCH"}:
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+    room = get_object_or_404(Room.objects.select_related("course"), pk=room_id)
+    user = cast(User, request.user)
+    if not _can_manage_room(user, room):
+        return JsonResponse({"detail": "Not permitted"}, status=403)
+    if room.kind == Room.KIND_DM:
+        return JsonResponse({"detail": "Rename not supported for DMs"}, status=400)
+    title = (request.POST.get("title") or request.GET.get("title") or "").strip()
+    if not title:
+        return JsonResponse({"detail": "Title required"}, status=400)
+    room.title = title
+    room.save(update_fields=["title"])
+    return JsonResponse({"title": room.title})
+
+
+@login_required
+def room_members_add(request: HttpRequest, room_id: int) -> JsonResponse:
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+    room = get_object_or_404(Room.objects.select_related("course"), pk=room_id)
+    user = cast(User, request.user)
+    if not _can_manage_room(user, room):
+        return JsonResponse({"detail": "Not permitted"}, status=403)
+    q = (
+        request.POST.get("q")
+        or request.POST.get("username")
+        or request.POST.get("email")
+        or request.POST.get("user_id")
+        or ""
+    ).strip()
+    target: User | None = None
+    if q.isdigit():
+        target = User.objects.filter(pk=int(q)).first()
+    elif "@" in q:
+        target = User.objects.filter(email__iexact=q).first()
+    else:
+        target = User.objects.filter(username=q).first()
+    if not target:
+        return JsonResponse({"detail": "User not found"}, status=404)
+    if RoomMembership.objects.filter(room=room, user=target).exists():
+        return JsonResponse({"added": False, "detail": "Already a member"})
+    # If DM and adding a third person, convert to group
+    if room.kind == Room.KIND_DM:
+        room.kind = Room.KIND_GROUP
+        if not room.title:
+            room.title = "Group"
+        room.save(update_fields=["kind", "title"])
+    RoomMembership.objects.create(room=room, user=target, role=RoomMembership.ROLE_MEMBER)
+    return JsonResponse({"added": True})
+
+
+@login_required
+def room_members_remove(request: HttpRequest, room_id: int) -> JsonResponse:
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+    room = get_object_or_404(Room.objects.select_related("course"), pk=room_id)
+    user = cast(User, request.user)
+    if not _can_manage_room(user, room):
+        return JsonResponse({"detail": "Not permitted"}, status=403)
+    uid_s = (request.POST.get("user_id") or "").strip()
+    if not uid_s.isdigit():
+        return JsonResponse({"detail": "user_id required"}, status=400)
+    uid = int(uid_s)
+    if uid == user.id:
+        return JsonResponse({"detail": "Use leave endpoint to remove yourself"}, status=400)
+    if room.kind == Room.KIND_COURSE:
+        return JsonResponse({"detail": "Cannot remove from course chat"}, status=400)
+    RoomMembership.objects.filter(room=room, user_id=uid).delete()
+    return JsonResponse({"removed": True})
+
+
+@login_required
+def room_leave(request: HttpRequest, room_id: int) -> JsonResponse:
+    if request.method != "POST":
+        return JsonResponse({"detail": "Method not allowed"}, status=405)
+    room = get_object_or_404(Room, pk=room_id)
+    user = cast(User, request.user)
+    if room.kind == Room.KIND_COURSE:
+        return JsonResponse({"detail": "Cannot leave course chat"}, status=400)
+    RoomMembership.objects.filter(room=room, user_id=user.id).delete()
+    return JsonResponse({"left": True})
+
+
 def _is_owner(user: User, course: Course) -> bool:
     return bool(user and user.is_authenticated and course.owner_id == user.id)
 
@@ -245,14 +501,28 @@ def room_messages(request: HttpRequest, room_id: int) -> JsonResponse:
 
 @login_required
 def create_dm(request: HttpRequest) -> JsonResponse:
-    """Create or return a DM room between the current user and another user."""
+    """Create or return a DM room between the current user and another user.
+
+    Accepts one of: user_id, username, email, or q (auto-detected: digits=id, contains '@'=email, else username).
+    """
     if request.method != "POST":
         return JsonResponse({"detail": "Method not allowed"}, status=405)
-    other_id = request.POST.get("user_id") or ""
-    other_username = request.POST.get("username") or ""
+    other_id = (request.POST.get("user_id") or "").strip()
+    other_username = (request.POST.get("username") or "").strip()
+    other_email = (request.POST.get("email") or "").strip()
+    q = (request.POST.get("q") or "").strip()
+    if q and not (other_id or other_username or other_email):
+        if q.isdigit():
+            other_id = q
+        elif "@" in q:
+            other_email = q
+        else:
+            other_username = q
     other: User | None = None
     if other_id.isdigit():
         other = User.objects.filter(pk=int(other_id)).first()
+    if not other and other_email:
+        other = User.objects.filter(email__iexact=other_email).first()
     if not other and other_username:
         other = User.objects.filter(username=other_username).first()
     if not other:
@@ -282,7 +552,12 @@ def create_dm(request: HttpRequest) -> JsonResponse:
 
 @login_required
 def create_group(request: HttpRequest) -> JsonResponse:
-    """Create a group chat room. Creator becomes owner. Optional member_ids."""
+    """Create a group chat room. Creator becomes owner. Members optional.
+
+    Accepts:
+    - member_ids: comma-separated user IDs (legacy)
+    - members: comma/space-separated tokens (id, email, or username)
+    """
     if request.method != "POST":
         return JsonResponse({"detail": "Method not allowed"}, status=405)
     title = (request.POST.get("title") or "").strip()
@@ -291,21 +566,31 @@ def create_group(request: HttpRequest) -> JsonResponse:
     user = cast(User, request.user)
     room = Room.objects.create(kind=Room.KIND_GROUP, title=title)
     RoomMembership.objects.create(room=room, user=user, role=RoomMembership.ROLE_OWNER)
-    # Optional: member_ids as comma-separated
-    raw = request.POST.get("member_ids") or ""
-    ids = []
-    for part in raw.split(","):
-        p = part.strip()
-        if p.isdigit():
-            ids.append(int(p))
-    for uid in ids:
-        if uid == user.id:
+    # Gather members
+    tokens: list[str] = []
+    legacy = (request.POST.get("member_ids") or "").strip()
+    if legacy:
+        tokens.extend([p.strip() for p in legacy.split(",") if p.strip()])
+    members = (request.POST.get("members") or "").strip()
+    if members:
+        for part in members.replace("\n", ",").replace(" ", ",").split(","):
+            if part.strip():
+                tokens.append(part.strip())
+    added = set()
+    for tok in tokens:
+        u: User | None = None
+        if tok.isdigit():
+            u = User.objects.filter(pk=int(tok)).first()
+        elif "@" in tok:
+            u = User.objects.filter(email__iexact=tok).first()
+        else:
+            u = User.objects.filter(username=tok).first()
+        if not u or u.id == user.id or u.id in added:
             continue
-        u = User.objects.filter(pk=uid).first()
-        if u:
-            RoomMembership.objects.get_or_create(
-                room=room, user=u, defaults={"role": RoomMembership.ROLE_MEMBER}
-            )
+        RoomMembership.objects.get_or_create(
+            room=room, user=u, defaults={"role": RoomMembership.ROLE_MEMBER}
+        )
+        added.add(u.id)
     return JsonResponse({"room_id": room.id})
 
 

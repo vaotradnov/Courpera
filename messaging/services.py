@@ -105,10 +105,20 @@ def create_chat_notifications_for_message(m: Message) -> int:
     # Push real-time badge bumps to recipients
     try:
         layer = get_channel_layer()
+        payload_base = {
+            "type": "notif.bump",
+            "delta": 1,
+            "room_id": m.room_id,
+            "last_message": {
+                "text": (m.text or "")[:80],
+                "created_at": m.created_at.isoformat(),
+                "sender": getattr(m.sender, "username", ""),
+            },
+        }
         for uid in rec.user_ids:
             async_to_sync(layer.group_send)(
                 f"user_{uid}_notifications",
-                {"type": "notif_message", "payload": {"type": "notif.bump", "delta": 1}},
+                {"type": "notif_message", "payload": payload_base},
             )
         try:
             metrics_inc("courpera_ws_notif_push_total", len(rec.user_ids))

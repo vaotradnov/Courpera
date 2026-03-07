@@ -19,6 +19,7 @@
         </div>
       </div>
       <div class="nav-row bottom">
+        <span id="currentUserData" data-uid="{{ request.user.id }}" data-username="{{ request.user.username }}" class="sr-only"></span>
         <a href="/accounts/home/">Home</a>
         <a href="/courses/">Courses</a>
         <span class="explore-wrap">
