@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% load avatar %}
+{% block title %}{{ target_user.username }} — {{ block.super }}{% endblock %}
+{% block content %}
+  <section class="panel hero">
+    <div class="panel-heading">
+      <h2>@{{ target_user.username }}</h2>
+      {% if target_user.profile and target_user.profile.role %}
+        <span class="chip">{{ target_user.profile.role|capfirst }}</span>
+      {% endif %}
+      {% if is_owner %}
+        <a class="btn-secondary" href="/accounts/profile/">Edit profile</a>
+      {% endif %}
+    </div>
+    <div class="instructor mt-2">
+      <img src="{% avatar_url target_user 64 %}" alt="" />
+      <div>
+        {% if target_user.profile.full_name %}
+          <div class="muted">{{ target_user.profile.full_name }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h3>Profile</h3>
+    <div class="kv">
+      <label>Full name</label>
+      <div>{{ target_user.profile.full_name|default:"—" }}</div>
+      <label>Email</label>
+      <div>{{ target_user.email|default:"—" }}</div>
+      <label>Phone</label>
+      <div>{{ target_user.profile.phone|default:"—" }}</div>
+      <label>Timezone</label>
+      <div>{{ target_user.profile.timezone|default:"—" }}</div>
+    </div>
+  </section>
+
+  {% if viewer_is_teacher %}
+  <section class="panel">
+    <h3>Enrolled courses</h3>
+    {% if enrolled_courses %}
+      <ul>
+        {% for c in enrolled_courses %}
+          <li><a href="/courses/{{ c.id }}/">{{ c.title }}</a></li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">No enrolments found.</p>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <section class="panel">
+    <h3>Status updates</h3>
+    {% if is_owner and status_form %}
+    <form method="post" action="/activity/status/">
+      {% csrf_token %}
+      {{ status_form.text }}
+      <div><button type="submit">Post</button></div>
+    </form>
+    {% endif %}
+    <ul>
+      {% for s in updates %}
+        <li><span class="muted">{{ s.created_at }}</span> — {{ s.text }}</li>
+      {% empty %}
+        <li>No updates yet.</li>
+      {% endfor %}
+    </ul>
+  </section>
+{% endblock %}

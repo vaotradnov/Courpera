@@ -20,7 +20,7 @@ from django.http import (
     HttpResponseBadRequest,
     HttpResponseBase,
 )
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import redirect, render
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_GET
 
@@ -185,81 +185,6 @@ def search_users(request: HttpRequest) -> HttpResponse:
             User.objects.select_related("profile").filter(base_q).order_by("username")[:50]
         )
     return render(request, "accounts/search.html", {"q": q, "results": results})
-
-
-@login_required
-def search_people(request: HttpRequest) -> HttpResponse:
-    """Authenticated people search (students and teachers).
-
-    - Case-insensitive partial match on username, full name, email, student/instructor IDs
-    - Limit to 50 results, ordered by username
-    - Supports direct match by numeric user id and S/I-prefixed IDs (e.g. S0000002)
-    """
-    q = (request.GET.get("q") or "").strip()
-    results: list[User] = []
-    if q:
-        base_q = (
-            Q(username__icontains=q)
-            | Q(profile__full_name__icontains=q)
-            | Q(email__icontains=q)
-            | Q(profile__student_number__icontains=q)
-            | Q(profile__instructor_id__icontains=q)
-        )
-        # Direct numeric user id
-        if q.isdigit():
-            try:
-                base_q = base_q | Q(id=int(q))
-            except Exception:
-                pass
-        # S0000002 / I0000003 pattern -> numeric id fallback
-        m = re.fullmatch(r"[sSiI](\d{1,9})", q)
-        if m:
-            try:
-                base_q = base_q | Q(id=int(m.group(1)))
-            except Exception:
-                pass
-        results = list(
-            User.objects.select_related("profile").filter(base_q).order_by("username")[:50]
-        )
-    return render(request, "accounts/people_search.html", {"q": q, "results": results})
-
-
-@login_required
-def public_home(request: HttpRequest, username: str) -> HttpResponse:
-    """Public home page for a user (requires authentication).
-
-    Shows basic user info and recent status updates. Only the owner (and only
-    if a student) sees the status post form. No private fields are exposed.
-    """
-    target = get_object_or_404(User.objects.select_related("profile"), username=username)
-    is_owner = request.user.is_authenticated and request.user.id == target.id
-    updates = Status.objects.filter(user_id=target.id)[:20]
-    form = (
-        StatusForm() if is_owner and getattr(target.profile, "role", None) == Role.STUDENT else None
-    )
-    viewer_is_teacher = (
-        getattr(getattr(request.user, "profile", None), "role", None) == Role.TEACHER
-    )
-    enrolled_courses = []
-    if viewer_is_teacher:
-        try:
-            enrolled_courses = [
-                e.course
-                for e in Enrolment.objects.filter(student_id=target.id)
-                .select_related("course")
-                .order_by("course__title")
-            ]
-        except Exception:
-            enrolled_courses = []
-    ctx = {
-        "target_user": target,
-        "is_owner": is_owner,
-        "updates": updates,
-        "status_form": form,
-        "viewer_is_teacher": viewer_is_teacher,
-        "enrolled_courses": enrolled_courses,
-    }
-    return render(request, "accounts/public_home.html", ctx)
 
 
 @login_required

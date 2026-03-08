@@ -11,7 +11,9 @@ from .views import (
     password_change_done,
     password_forgot,
     profile_edit,
+    public_home,
     register,
+    search_people,
     search_users,
     student_grades,
 )
@@ -30,6 +32,8 @@ urlpatterns = [
     path("home/student/", home_student, name="home-student"),
     path("profile/", profile_edit, name="profile"),
     path("search/", search_users, name="search"),
+    path("people/", search_people, name="people"),
+    path("u/<str:username>/", public_home, name="public-home"),
     path("avatar/<int:user_id>/<int:size>/", avatar_proxy, name="avatar-proxy"),
     path("grades/", student_grades, name="grades"),
 ]

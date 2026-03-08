@@ -21,7 +21,6 @@
       <div class="nav-row bottom">
         <span id="currentUserData" data-uid="{{ request.user.id }}" data-username="{{ request.user.username }}" class="sr-only"></span>
         <a href="/accounts/home/">Home</a>
-        <a href="{% url 'accounts:public-home' username=request.user.username %}">My Page</a>
         <a href="/courses/">Courses</a>
         <span class="explore-wrap">
           <button id="exploreBtn" class="btn-link" type="button" aria-haspopup="menu" aria-controls="explorePanel" aria-expanded="false">Explore</button>
@@ -45,15 +44,10 @@
           </div>
         </span>
         {% if request.user.profile and request.user.profile.role == 'teacher' %}
-          <form method="get" action="/accounts/search/" class="header-search">
-            <label for="hdrq" class="sr-only">Search users</label>
-            <input id="hdrq" name="q" type="search" placeholder="Search users (name, email, ID)" class="input" />
-          </form>
-        {% else %}
-          <form method="get" action="/accounts/people/" class="header-search">
-            <label for="hdrp" class="sr-only">Find people</label>
-            <input id="hdrp" name="q" type="search" placeholder="Find people (name, username, email, ID)" class="input" />
-          </form>
+        <form method="get" action="/accounts/search/" class="header-search">
+          <label for="hdrq" class="sr-only">Search users</label>
+          <input id="hdrq" name="q" type="search" placeholder="Search users (name, email, ID)" class="input" />
+        </form>
         {% endif %}
         <span class="flex-spacer"></span>
         <span class="notif-wrap">

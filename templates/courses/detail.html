@@ -27,7 +27,7 @@
     {% if course.description %}
       <p>{{ course.description }}</p>
     {% endif %}
-    <p class="muted">Teacher: {{ course.owner.username }}</p>
+    <p class="muted">Teacher: <a href="{% url 'accounts:public-home' username=course.owner.username %}">{{ course.owner.username }}</a></p>
     <div class="hero-actions">
       {% if owner_view %}
       {% elif is_enrolled and request.user.is_authenticated and request.user.profile.role == 'student' %}
@@ -106,9 +106,9 @@
       </div>
     </div>
     <div class="instructor mt-2">
-      <img src="{% avatar_url course.owner 48 %}" alt="" />
+      <a href="{% url 'accounts:public-home' username=course.owner.username %}"><img src="{% avatar_url course.owner 48 %}" alt="" /></a>
       <div>
-        <div><strong>{{ course.owner.username }}</strong></div>
+        <div><strong><a href="{% url 'accounts:public-home' username=course.owner.username %}">{{ course.owner.username }}</a></strong></div>
         {% if course.owner.profile.full_name %}
           <div class="muted">{{ course.owner.profile.full_name }}</div>
         {% endif %}

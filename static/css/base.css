@@ -18,7 +18,9 @@ a:hover, a:focus { text-decoration: underline; }
 .nav-row { display: flex; gap: .75rem; align-items: center; flex-wrap: nowrap; }
 .flex-spacer { flex: 1 1 auto; }
 .hdr-actions { display: flex; gap: .5rem; align-items: center; justify-content: flex-end; }
-.header-search input { width: 28rem; max-width: 50vw; }
+.header-nav .nav-row > * { flex-shrink: 0; }
+.header-search input { width: 40ch; max-width: 40ch; }
+.header-nav .nav-row a, .logout-form button { white-space: nowrap; }
 .breadcrumbs a { color: var(--cp-colour-primary); }
 .breadcrumbs .muted { color: var(--cp-colour-muted); }
 

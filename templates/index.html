@@ -1,11 +1,17 @@
 {% extends "base.html" %}
 {% block title %}{{ app_name }} — Home{% endblock %}
 {% block content %}
-  <section>
+  <section class="panel">
+    <h2>Welcome to {{ app_name }}</h2>
     <p>{{ tagline }}</p>
+    <ul>
+      <li>Browse courses, enrol, and track upcoming deadlines.</li>
+      <li>Post status updates, receive notifications, and join course chat.</li>
+      <li>Teachers can create courses, manage materials and assignments.</li>
+    </ul>
     <p>
-      This is a minimal landing page to confirm the scaffold is wired correctly.
-      Additional pages and features are introduced progressively in later stages.
+      Get started from the navigation above: open <a href="/courses/">Courses</a> or head to
+      <a href="/accounts/home/">Home</a>.
     </p>
   </section>
 

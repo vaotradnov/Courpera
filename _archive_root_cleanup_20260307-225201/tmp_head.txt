@@ -1,0 +1,3 @@
+"""Base Django settings for Courpera (Stage 2 — split + API docs).
+
+This base layer is environment-agnostic. Developme

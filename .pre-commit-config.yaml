@@ -27,6 +27,9 @@ repos:
     hooks:
       - id: mypy
         args: ["--config-file", "mypy.ini"]
+        exclude: |
+          (?x)^
+            (_archive_root_cleanup_.*)
         additional_dependencies: [
           "django==5.1.15",
           "djangorestframework==3.15.2",
@@ -60,6 +63,8 @@ repos:
             pytest_report\.html|
             static/.*|
             templates/.*
+            fixtures/.*|
+            fixtures\\.*
           )$
   - repo: local
     hooks:

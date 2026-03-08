@@ -59,7 +59,7 @@ def index(request: HttpRequest) -> HttpResponse:
     admin_mode = _admin_mode(request)
     ctx = {
         "app_name": "Courpera",
-        "tagline": "A streamlined, server-rendered e-learning application.",
+        "tagline": "Collaborative, server-rendered e‑learning for courses, chat, and assessments.",
         "admin_mode": admin_mode,
         "runinfo": _run_info() if admin_mode else None,
         # Optional credentials for operator/grader convenience; read from env

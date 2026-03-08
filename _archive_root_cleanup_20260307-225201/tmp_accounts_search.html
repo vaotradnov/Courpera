@@ -17,7 +17,7 @@
     <ul>
       {% for u in results %}
         <li>
-          <a href="{% url 'accounts:public-home' username=u.username %}"><strong>{{ u.username }}</strong></a>
+          <strong>{{ u.username }}</strong>
           {% if u.profile and u.profile.role %}<span class="muted">({{ u.profile.role }})</span>{% endif %}
           {% if u.profile and u.profile.role == 'student' and u.profile.student_number %}
             <span class="muted"> ({{ u.profile.student_number }})</span>

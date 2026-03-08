@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% load avatar %}
+{% block title %}Find People — {{ block.super }}{% endblock %}
+{% block content %}
+  <section class="panel">
+    <h2>Find People</h2>
+    <form method="get" action="" class="kv max-w-620">
+      <label for="q">Name or username</label>
+      <input id="q" name="q" type="search" value="{{ q }}" placeholder="e.g. anna, mjohnson" />
+      <div></div>
+      <button type="submit">Search</button>
+    </form>
+  </section>
+
+  {% if q %}
+  <section class="panel">
+    <h3>Results for “{{ q }}”</h3>
+    <ul>
+      {% for u in results %}
+        <li>
+          <a href="{% url 'accounts:public-home' username=u.username %}">
+            <img src="{% avatar_url u 24 %}" alt="" class="avatar-sm" />
+            <strong>{{ u.username }}</strong>
+          </a>
+          {% if u.profile and u.profile.full_name %}
+            <span class="muted"> ({{ u.profile.full_name }})</span>
+          {% endif %}
+          {% if u.profile and u.profile.role %}
+            <span class="muted"> — {{ u.profile.role|capfirst }}</span>
+          {% endif %}
+          {% if u.email %}
+            <span class="muted"> — {{ u.email }}</span>
+          {% endif %}
+        </li>
+      {% empty %}
+        <li>No matching users.</li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+{% endblock %}
