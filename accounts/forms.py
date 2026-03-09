@@ -89,16 +89,33 @@ class EmailOrUsernameAuthenticationForm(AuthenticationForm):
         self.fields["username"].label = "Username or email"
 
     def clean(self):
-        cleaned = super().clean()
-        login = self.cleaned_data.get("username") or ""
-        if "@" in login:
+        """Normalise username/email to a canonical username then authenticate.
+
+        AuthenticationForm.clean() uses self.cleaned_data["username"].
+        Adjust it here (case-insensitive username or email -> username)
+        before delegating to the parent implementation.
+        """
+        try:
+            raw = (self.cleaned_data.get("username") or "").strip()
+        except Exception:
+            raw = ""
+        try:
             from django.contrib.auth import get_user_model
 
             UserModel = get_user_model()
-            user = UserModel.objects.filter(email__iexact=login.strip()).first()
-            if user:
+            user = None
+            if "@" in raw:
+                user = UserModel.objects.filter(email__iexact=raw).first()
+            else:
+                user = UserModel.objects.filter(username__iexact=raw).first()
+        except Exception:
+            user = None
+        if user:
+            try:
                 self.cleaned_data["username"] = user.get_username()
-        return cleaned
+            except Exception:
+                pass
+        return super().clean()
 
 
 class ProfileForm(forms.ModelForm):

@@ -6,6 +6,11 @@
     <form method="post" action="">
       {% csrf_token %}
       {{ form.non_field_errors }}
+      {% if form.errors %}
+        <div class="alert error">
+          Please correct the highlighted fields.
+        </div>
+      {% endif %}
       <div class="kv">
         <label for="id_username">Username</label>
         {{ form.username }}
@@ -15,10 +20,13 @@
         {{ form.email.errors }}
         <label for="id_role">Role</label>
         {{ form.role }}
+        {{ form.role.errors }}
         <label for="id_secret_word">Secret word</label>
         {{ form.secret_word }}
+        {{ form.secret_word.errors }}
         <label for="id_password1">Password</label>
         {{ form.password1 }}
+        {{ form.password1.errors }}
         <div></div>
         <div>
           <ul id="pwChecklist" class="pw-list muted">

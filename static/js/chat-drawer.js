@@ -190,6 +190,20 @@
     var hasMarked=false; function markRead(){ if(hasMarked) return; hasMarked=true; fetch('/messaging/rooms/' + roomId + '/read/', { method:'POST', headers:{ 'X-CSRFToken': _getCookie('csrftoken') } }).then(function(){ try{ var d=document.getElementById('unreadDivider'); if(d) d.remove(); }catch(_){ } }); }
     function checkMarkRead(){ try{ var div=document.getElementById('unreadDivider'); if(!div || hasMarked) return; var top = log.getBoundingClientRect().top; var divTop = div.getBoundingClientRect().top; if (divTop <= top + 4){ markRead(); } }catch(_){ } }
     log.addEventListener('scroll', checkMarkRead);
+    // Emit typing signals so other clients can show a typing indicator
+    try{
+      var _typingEl = document.getElementById('drawerMsg');
+      var _typingTimer = null;
+      function _sendTyping(action){ try{ if(ws && ws.readyState===1){ ws.send(JSON.stringify({type:'typing', action:action})); } }catch(_){ } }
+      if(_typingEl){
+        _typingEl.addEventListener('input', function(){
+          _sendTyping('start');
+          if(_typingTimer){ try{ clearTimeout(_typingTimer); }catch(_){ } }
+          _typingTimer = setTimeout(function(){ _sendTyping('stop'); }, 1500);
+        });
+        _typingEl.addEventListener('blur', function(){ if(_typingTimer){ try{ clearTimeout(_typingTimer); }catch(_){ } } _sendTyping('stop'); });
+      }
+    }catch(_){ }
     form.addEventListener('submit', function(ev){ try{ ev.preventDefault(); }catch(_){ } var input=_qs('drawerMsg'); var txt=(input && input.value||'').trim(); if(!txt) return; try{ if(ws && ws.readyState===1){ ws.send(JSON.stringify({message:txt})); } }catch(_){ } try{ input.value=''; }catch(_){ } });
     try{ var mp=document.getElementById('chatModeration'); if(mp) _buildModeration(mp); }catch(_){ }
     // Build simple Room Tools (rename, add/remove)

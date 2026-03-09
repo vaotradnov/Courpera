@@ -227,3 +227,6 @@ __marimo__/
 tmp/
 fixtures/*.json
 fixtures/*.csv
+
+# Archived root cleanup backups (do not track)
+_archive_root_cleanup_*/

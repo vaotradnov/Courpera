@@ -27,6 +27,10 @@ class ContentSecurityPolicyMiddleware(MiddlewareMixin):
                 "'sha256-RL3ie0nH+Lzz2YNqQN83mnU0J1ot4QL7b99vMdIX99w=' "  # pragma: allowlist secret
                 "'unsafe-hashes'"
             )
+        # ReDoc uses CSS-in-JS (styled-components) and injects inline <style> tags.
+        # Allow inline styles only on the ReDoc route to satisfy CSP in dev/local.
+        elif request.path == "/redoc/":
+            style_src = "'self' 'unsafe-inline'"
 
         csp = (
             "default-src 'self'; "

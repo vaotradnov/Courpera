@@ -96,7 +96,9 @@ def register(request: HttpRequest) -> HttpResponse:
         form = RegistrationForm(request.POST)
         if form.is_valid():
             user = form.save()
-            login(request, user)
+            # Ensure a backend is provided to avoid ValueError when logging
+            # in a freshly created user that hasn't been authenticated yet.
+            login(request, user, backend="django.contrib.auth.backends.ModelBackend")
             messages.success(request, "Welcome to Courpera!")
             return redirect("accounts:home")
     else:
